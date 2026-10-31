@@ -49,8 +49,9 @@ Notes:
 
 - The initiation webhook's answer must include every custom dynamic variable the
   agent defines. The kit returns one, `caller_on_file`; add yours in
-  `agent_phone_kit/initiation.py`. Dashboard previews and simulation tests don't
-  call this webhook, so give `caller_on_file` a placeholder value in the agent.
+  `agent_phone_kit/initiation.py`. Previews started from the agent's dashboard
+  page don't call this webhook, so give `caller_on_file` a placeholder value in
+  the agent.
 - If the initiation webhook fails or times out, the call may not start. The kit's
   endpoint answers even when the caller lookup throws.
 - Webhook retries are off by default in ElevenLabs. Turn them on so a 500 from

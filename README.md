@@ -96,7 +96,7 @@ and lets you change the 30-minute window (`WEBHOOK_TOLERANCE_SECONDS`).
 
 The receiver at `POST /webhooks/post-call`:
 
-1. answers 401 to a missing, wrong or stale signature. ElevenLabs does not retry 4xx answers;
+1. answers 401 to a missing, wrong or stale signature. ElevenLabs does not retry a 400 or 401;
 2. answers 400 to a signed body that isn't a JSON event with `data.conversation_id`;
 3. answers `{"status": "duplicate"}` to a repeat of an event it has already handled,
    keyed on type, conversation ID and event timestamp (a retry carries the same payload);
@@ -109,10 +109,11 @@ The receiver at `POST /webhooks/post-call`:
 Two things to know when you deploy:
 
 - [Retries](https://elevenlabs.io/docs/eleven-api/resources/webhooks#retries) are
-  off by default; turn them on. There are up to 5 attempts: at once, then after
-  30 s, 2 min, 8 min and 30 min. The docs don't say whether a retry is signed
-  again, so if late retries
-  show up in the log as `rejected post-call webhook: timestamp is ... old`, raise
+  off by default; turn them on. A delivery that fails with a 5xx, 408, 429 or a
+  connection error is retried up to 5 times: at once, then after 30 s, 2 min,
+  8 min and 30 min, each with up to 10% jitter. The docs don't say whether a
+  retry is signed again, so if late retries show up in the log as
+  `rejected post-call webhook: timestamp is ... old`, raise
   `WEBHOOK_TOLERANCE_SECONDS`.
 - Duplicate detection is in memory, per process. With more than one process, use
   a shared store, such as a unique index on the same three fields.
@@ -220,6 +221,7 @@ src/agent_phone_kit/
   post_call.py      post-call receiver, CallSummary, duplicate tracking
   signature.py      ElevenLabs-Signature verify and sign
   auth.py           bearer-secret dependency
+  settings.py       Settings.from_env(): secrets and the signature tolerance
   replay.py         recorded-conversation replay
   pytest_plugin.py  fixtures and the phone_kit_conversations option
 examples/elevenlabs/  tool config and phone-number request bodies
