@@ -1,0 +1,113 @@
+{
+  "type": "post_call_transcription",
+  "event_timestamp": 1767225641,
+  "data": {
+    "agent_id": "agent_synthetic_claims_line",
+    "conversation_id": "conv_synthetic_0001",
+    "status": "done",
+    "transcript": [
+      {
+        "role": "agent",
+        "message": "Thanks for calling the claims line. This call is recorded. How can I help?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 0
+      },
+      {
+        "role": "user",
+        "message": "Hi, I'm checking on a claim. It's C L M one zero zero one.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 4
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": [
+          {
+            "type": "webhook",
+            "request_id": "req_0001_a",
+            "tool_name": "claim_status",
+            "params_as_json": "{\"claim_number\": \"CLM 1001\", \"conversation_id\": \"conv_synthetic_0001\"}",
+            "tool_has_been_called": true,
+            "tool_details": {
+              "type": "webhook",
+              "method": "POST",
+              "url": "https://tools.example.com/tools/claim-status",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "path_params": {},
+              "query_params": {},
+              "body": "{\"claim_number\": \"CLM 1001\", \"conversation_id\": \"conv_synthetic_0001\"}"
+            }
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 9
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": null,
+        "tool_results": [
+          {
+            "type": "webhook",
+            "request_id": "req_0001_a",
+            "tool_name": "claim_status",
+            "result_value": "{\"found\":true,\"claim_number\":\"CLM-1001\",\"status\":\"approved\",\"next_step\":\"Payment goes out within five business days.\",\"message\":\"Claim CLM-1001 is approved. Payment goes out within five business days.\"}",
+            "is_error": false,
+            "tool_has_been_called": true
+          }
+        ],
+        "time_in_call_secs": 10
+      },
+      {
+        "role": "agent",
+        "message": "Claim CLM-1001 is approved. Payment goes out within five business days. Is there anything else?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 11
+      },
+      {
+        "role": "user",
+        "message": "No, that's it. Thanks.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 18
+      },
+      {
+        "role": "agent",
+        "message": "You're welcome. Goodbye.",
+        "tool_calls": [
+          {
+            "type": "system",
+            "request_id": "req_0001_b",
+            "tool_name": "end_call",
+            "params_as_json": "{}",
+            "tool_has_been_called": true,
+            "tool_details": null
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 20
+      }
+    ],
+    "metadata": {
+      "start_time_unix_secs": 1767225600,
+      "call_duration_secs": 41
+    },
+    "analysis": {
+      "call_successful": "success",
+      "transcript_summary": "Synthetic call. The caller asked about claim CLM-1001 and heard that it is approved."
+    },
+    "conversation_initiation_client_data": {
+      "dynamic_variables": {
+        "caller_on_file": true
+      }
+    },
+    "has_audio": false,
+    "has_user_audio": false,
+    "has_response_audio": false
+  }
+}

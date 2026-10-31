@@ -1,0 +1,129 @@
+{
+  "type": "post_call_transcription",
+  "event_timestamp": 1767232852,
+  "data": {
+    "agent_id": "agent_synthetic_claims_line",
+    "conversation_id": "conv_synthetic_0003",
+    "status": "done",
+    "transcript": [
+      {
+        "role": "agent",
+        "message": "Thanks for calling the claims line. This call is recorded. How can I help?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 0
+      },
+      {
+        "role": "user",
+        "message": "I want to check claim C L M nine nine nine nine.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 5
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": [
+          {
+            "type": "webhook",
+            "request_id": "req_0003_a",
+            "tool_name": "claim_status",
+            "params_as_json": "{\"claim_number\": \"CLM9999\", \"conversation_id\": \"conv_synthetic_0003\"}",
+            "tool_has_been_called": true,
+            "tool_details": {
+              "type": "webhook",
+              "method": "POST",
+              "url": "https://tools.example.com/tools/claim-status",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "path_params": {},
+              "query_params": {},
+              "body": "{\"claim_number\": \"CLM9999\", \"conversation_id\": \"conv_synthetic_0003\"}"
+            }
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 10
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": null,
+        "tool_results": [
+          {
+            "type": "webhook",
+            "request_id": "req_0003_a",
+            "tool_name": "claim_status",
+            "result_value": "{\"found\":false,\"claim_number\":\"CLM-9999\",\"status\":null,\"next_step\":null,\"message\":\"I couldn't find claim CLM-9999.\"}",
+            "is_error": false,
+            "tool_has_been_called": true
+          }
+        ],
+        "time_in_call_secs": 11
+      },
+      {
+        "role": "agent",
+        "message": "I couldn't find claim CLM-9999. Do you want me to connect you with someone?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 12
+      },
+      {
+        "role": "user",
+        "message": "Yes, please.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 19
+      },
+      {
+        "role": "agent",
+        "message": "Connecting you now.",
+        "tool_calls": [
+          {
+            "type": "system",
+            "request_id": "req_0003_b",
+            "tool_name": "transfer_to_number",
+            "params_as_json": "{\"reason\": \"claim not found; caller asked for a person\"}",
+            "tool_has_been_called": true,
+            "tool_details": null
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 21
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": null,
+        "tool_results": [
+          {
+            "type": "system",
+            "request_id": "req_0003_b",
+            "tool_name": "transfer_to_number",
+            "result_value": "{\"status\":\"transferred\"}",
+            "is_error": false,
+            "tool_has_been_called": true
+          }
+        ],
+        "time_in_call_secs": 22
+      }
+    ],
+    "metadata": {
+      "start_time_unix_secs": 1767232800,
+      "call_duration_secs": 52
+    },
+    "analysis": {
+      "call_successful": "success",
+      "transcript_summary": "Synthetic call. Claim CLM-9999 was not found and the caller was transferred to a person."
+    },
+    "conversation_initiation_client_data": {
+      "dynamic_variables": {
+        "caller_on_file": false
+      }
+    },
+    "has_audio": false,
+    "has_user_audio": false,
+    "has_response_audio": false
+  }
+}

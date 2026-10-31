@@ -1,0 +1,113 @@
+{
+  "type": "post_call_transcription",
+  "event_timestamp": 1767229237,
+  "data": {
+    "agent_id": "agent_synthetic_claims_line",
+    "conversation_id": "conv_synthetic_0002",
+    "status": "done",
+    "transcript": [
+      {
+        "role": "agent",
+        "message": "Thanks for calling the claims line. This call is recorded. How can I help?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 0
+      },
+      {
+        "role": "user",
+        "message": "Where's my claim at? The number is one zero zero two.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 3
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": [
+          {
+            "type": "webhook",
+            "request_id": "req_0002_a",
+            "tool_name": "claim_status",
+            "params_as_json": "{\"claim_number\": \"1002\", \"conversation_id\": \"conv_synthetic_0002\"}",
+            "tool_has_been_called": true,
+            "tool_details": {
+              "type": "webhook",
+              "method": "POST",
+              "url": "https://tools.example.com/tools/claim-status",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "path_params": {},
+              "query_params": {},
+              "body": "{\"claim_number\": \"1002\", \"conversation_id\": \"conv_synthetic_0002\"}"
+            }
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 8
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": null,
+        "tool_results": [
+          {
+            "type": "webhook",
+            "request_id": "req_0002_a",
+            "tool_name": "claim_status",
+            "result_value": "{\"found\":true,\"claim_number\":\"CLM-1002\",\"status\":\"in review\",\"next_step\":\"An adjuster will call within two business days.\",\"message\":\"Claim CLM-1002 is in review. An adjuster will call within two business days.\"}",
+            "is_error": false,
+            "tool_has_been_called": true
+          }
+        ],
+        "time_in_call_secs": 9
+      },
+      {
+        "role": "agent",
+        "message": "Claim CLM-1002 is in review. An adjuster will call within two business days.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 10
+      },
+      {
+        "role": "user",
+        "message": "Okay, thank you.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 17
+      },
+      {
+        "role": "agent",
+        "message": "Goodbye.",
+        "tool_calls": [
+          {
+            "type": "system",
+            "request_id": "req_0002_b",
+            "tool_name": "end_call",
+            "params_as_json": "{}",
+            "tool_has_been_called": true,
+            "tool_details": null
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 19
+      }
+    ],
+    "metadata": {
+      "start_time_unix_secs": 1767229200,
+      "call_duration_secs": 37
+    },
+    "analysis": {
+      "call_successful": "success",
+      "transcript_summary": "Synthetic call. The caller gave only the digits 1002; the agent found claim CLM-1002 in review."
+    },
+    "conversation_initiation_client_data": {
+      "dynamic_variables": {
+        "caller_on_file": true
+      }
+    },
+    "has_audio": false,
+    "has_user_audio": false,
+    "has_response_audio": false
+  }
+}

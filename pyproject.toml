@@ -34,6 +34,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
 
+[project.entry-points.pytest11]
+agent_phone_kit = "agent_phone_kit.pytest_plugin"
+
 [project.urls]
 Repository = "https://github.com/woodbeary/agent-phone-kit"
 
