@@ -49,6 +49,7 @@ packages = ["src/agent_phone_kit"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+phone_kit_conversations = ["tests/conversations"]
 
 [tool.ruff]
 line-length = 100
