@@ -1,0 +1,27 @@
+{
+  "type": "webhook",
+  "name": "claim_status",
+  "description": "Look up the status of an insurance claim. Use it when the caller asks about a claim and has said the claim number.",
+  "api_schema": {
+    "url": "https://YOUR-HOST/tools/claim-status",
+    "method": "POST",
+    "request_headers": {
+      "Authorization": { "secret_id": "YOUR_WORKSPACE_SECRET_ID" }
+    },
+    "request_body_schema": {
+      "type": "object",
+      "description": "The claim to look up.",
+      "required": ["claim_number", "conversation_id"],
+      "properties": {
+        "claim_number": {
+          "type": "string",
+          "description": "The claim number exactly as the caller said it, for example CLM-1001. Do not guess missing digits; ask again."
+        },
+        "conversation_id": {
+          "type": "string",
+          "dynamic_variable": "system__conversation_id"
+        }
+      }
+    }
+  }
+}

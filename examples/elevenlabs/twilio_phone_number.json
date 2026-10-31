@@ -1,0 +1,8 @@
+{
+  "provider": "twilio",
+  "phone_number": "+1XXXXXXXXXX",
+  "label": "Claims line (Twilio)",
+  "agent_id": "YOUR_AGENT_ID",
+  "sid": "YOUR_TWILIO_API_KEY_SID",
+  "token": "YOUR_TWILIO_API_KEY_SECRET"
+}

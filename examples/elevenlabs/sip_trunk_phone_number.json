@@ -1,0 +1,24 @@
+{
+  "provider": "sip_trunk",
+  "phone_number": "+1XXXXXXXXXX",
+  "label": "Claims line (SIP trunk)",
+  "agent_id": "YOUR_AGENT_ID",
+  "inbound_trunk_config": {
+    "media_encryption": "required",
+    "remote_domains": ["sip.your-carrier.example"],
+    "credentials": {
+      "username": "YOUR_INBOUND_SIP_USERNAME",
+      "password": "YOUR_INBOUND_SIP_PASSWORD"
+    }
+  },
+  "outbound_trunk_config": {
+    "address": "sip.your-carrier.example",
+    "transport": "tls",
+    "media_encryption": "required",
+    "enabled_codecs": ["G722/8000", "PCMU/8000", "PCMA/8000"],
+    "credentials": {
+      "username": "YOUR_OUTBOUND_SIP_USERNAME",
+      "password": "YOUR_OUTBOUND_SIP_PASSWORD"
+    }
+  }
+}
