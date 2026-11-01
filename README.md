@@ -5,10 +5,14 @@
 A small Python kit for the server side of an ElevenLabs phone agent:
 
 - **A server tool.** A FastAPI endpoint the agent calls mid-call (here, an insurance
-  claim-status lookup), protected by a bearer secret.
+  claim-status lookup), protected by a bearer secret. It answers within 2 s, with a
+  fallback the agent can say when the backend is slow or down.
 - **A post-call webhook receiver.** It checks the `ElevenLabs-Signature` HMAC on the
-  raw body, rejects stale timestamps, drops repeat deliveries and hands each event
-  to your handler.
+  raw body, rejects stale timestamps, drops repeat deliveries, merges each event
+  into one durable record per `conversation_id` without ever nulling a field
+  (SQLite, or PostgreSQL), and hands each event to your handler.
+- **A substantive-call filter.** "Hello?", "test test" and "mm-hmm" calls are
+  counted apart, so the substantive call rate sits next to raw volume.
 - **Replay tests.** A pytest plugin that takes recorded conversations, re-sends
   every tool request the agent made, and fails with a field-by-field diff when your
   tools now answer differently.
@@ -30,11 +34,15 @@ reserved for fiction.
 flowchart LR
     subgraph phoneKit ["agent-phone-kit (FastAPI)"]
         initHook["POST /webhooks/conversation-init"]
-        toolHook["POST /tools/claim-status"]
-        postHook["POST /webhooks/post-call"] --> handler["your handler<br/>(default: one log line)"]
+        toolHook["POST /tools/claim-status<br/>(2 s budget)"]
+        postHook["POST /webhooks/post-call"] --> store[("one record per<br/>conversation_id")]
+        postHook --> handler["your handler<br/>(default: one log line)"]
+        gate["POST /twilio/voice, /gate, /dial-result<br/>(X-Twilio-Signature)"]
     end
     caller([Caller]) --> phone["Twilio number<br/>or SIP trunk"]
     phone --> agent["ElevenLabs agent"]
+    phone -.->|"register-call path"| gate
+    gate -.->|"press 1: a person; no answer: register-call"| agent
     agent -->|"call starts: bearer secret"| initHook
     agent -->|"mid-call tool: bearer secret"| toolHook
     agent -->|"call ends: HMAC signature"| postHook
@@ -64,7 +72,7 @@ curl -s localhost:8000/tools/claim-status \
 # {"found":true,"claim_number":"CLM-1002","status":"in review",...}
 ```
 
-To use it from another project: `pip install git+https://github.com/woodbeary/agent-phone-kit@v0.1.0`.
+To use it from another project: `pip install git+https://github.com/woodbeary/agent-phone-kit@v0.2.0`.
 
 ## The server tool
 
