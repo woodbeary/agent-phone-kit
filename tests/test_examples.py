@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from agent_phone_kit.app import create_app
-from agent_phone_kit.claims import ClaimStatusRequest
+from agent_phone_kit.claims import DEFAULT_BUDGET_SECONDS, ClaimStatusRequest
 
 EXAMPLES = Path(__file__).parent.parent / "examples" / "elevenlabs"
 
@@ -27,6 +27,15 @@ def test_tool_body_matches_the_request_model() -> None:
     body = load("claim_status_tool.json")["api_schema"]["request_body_schema"]
     assert set(body["properties"]) == set(ClaimStatusRequest.model_fields)
     assert body["properties"]["conversation_id"]["dynamic_variable"] == "system__conversation_id"
+
+
+def test_tool_timeout_leaves_room_for_the_kit_budget() -> None:
+    # ElevenLabs' response_timeout_secs can't go below 5 s, so the kit enforces the 2 s
+    # budget itself; the platform timeout is the backstop.
+    tool = load("claim_status_tool.json")
+    assert tool["response_timeout_secs"] == 5
+    assert tool["response_timeout_secs"] > DEFAULT_BUDGET_SECONDS
+    assert tool["pre_tool_speech"] == "auto"
 
 
 def test_tool_auth_comes_from_a_workspace_secret_not_a_literal() -> None:

@@ -50,7 +50,13 @@ def create_app(
     auth = bearer_auth(settings.tool_secret)
 
     app = FastAPI(title="agent-phone-kit", version=__version__)
-    app.include_router(claim_status_router(claims or InMemoryClaimStore(SAMPLE_CLAIMS), auth))
+    app.include_router(
+        claim_status_router(
+            claims or InMemoryClaimStore(SAMPLE_CLAIMS),
+            auth,
+            budget_seconds=settings.tool_budget_seconds,
+        )
+    )
     app.include_router(initiation_router(is_known_caller or SAMPLE_CALLERS.__contains__, auth))
     app.include_router(
         post_call_router(

@@ -2,6 +2,8 @@
   "type": "webhook",
   "name": "claim_status",
   "description": "Look up the status of an insurance claim. Use it when the caller asks about a claim and has said the claim number.",
+  "response_timeout_secs": 5,
+  "pre_tool_speech": "auto",
   "api_schema": {
     "url": "https://YOUR-HOST/tools/claim-status",
     "method": "POST",

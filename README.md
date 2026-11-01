@@ -63,9 +63,24 @@ To use it from another project: `pip install git+https://github.com/woodbeary/ag
 
 `POST /tools/claim-status` takes `{"claim_number": ..., "conversation_id": ...}`
 and answers with a `message` the agent can read out. "Not found" and "that isn't a
-claim number" are ordinary 200 answers so the agent can carry on the call; only
-a backend failure is an error (503). Claim numbers are normalized, so `clm 1001`,
-`CLM_1001` and `1001` all find `CLM-1001`.
+claim number" are ordinary 200 answers so the agent can carry on the call. Claim
+numbers are normalized, so `clm 1001`, `CLM_1001` and `1001` all find `CLM-1001`.
+
+The lookup has a 2 s budget (`TOOL_BUDGET_SECONDS`). If the claims backend is
+slower than that, raises, or is down, the tool still answers 200 with a fallback
+the agent can say: "I can't reach the claims system right now. I can take a
+callback number, or you can call back in a few minutes." Two platform limits are
+why the kit enforces this itself instead of answering 503:
+
+- ElevenLabs' `response_timeout_secs` for a tool must be between 5 and 300
+  seconds, so the platform can't cut a lookup off at 2 s.
+- With `tool_error_handling_mode: "auto"`, an error from a webhook tool is hidden
+  from the agent, so after a 503 the agent may not know what to say.
+
+Each lookup runs on its own daemon thread, at most 16 at once, so a hung backend
+can't block the event loop, the post-call webhook or shutdown. The example tool
+config sets `response_timeout_secs: 5` as the backstop and `pre_tool_speech:
+"auto"`, which lets the agent say something before a tool it has seen be slow.
 
 The tool config to paste into ElevenLabs is
 [`examples/elevenlabs/claim_status_tool.json`](examples/elevenlabs/claim_status_tool.json).
@@ -195,7 +210,7 @@ and runs 12 more (`tests/test_sdk_conformance.py`); it also runs weekly.
   intended difference, far-future timestamps, has its own test. The example tool
   and phone-number configs parse as the SDK's request models with no unknown fields.
 - **Endpoints:** bearer auth (missing, wrong scheme, wrong token), normalization,
-  not-found and backend-down answers, the initiation webhook with a broken
+  not-found answers, the fallback for a slow (hanging), failing or overloaded backend, the initiation webhook with a broken
   lookup, and the post-call receiver's 401, 400, duplicate and 500-then-retry paths.
 - **Replay and plugin:** the three synthetic conversations in `tests/conversations`
   replay cleanly; a changed tool answer fails with a diff; the plugin is run

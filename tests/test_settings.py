@@ -12,11 +12,20 @@ def test_from_env() -> None:
             "TOOL_BEARER_SECRET": TOOL,
             "ELEVENLABS_WEBHOOK_SECRET": HOOK,
             "WEBHOOK_TOLERANCE_SECONDS": "600",
+            "TOOL_BUDGET_SECONDS": "1.5",
         }
     )
     assert settings == Settings(
-        tool_secret=TOOL, webhook_secret=HOOK, webhook_tolerance_seconds=600
+        tool_secret=TOOL,
+        webhook_secret=HOOK,
+        webhook_tolerance_seconds=600,
+        tool_budget_seconds=1.5,
     )
+
+
+def test_tool_budget_defaults_to_two_seconds() -> None:
+    env = {"TOOL_BEARER_SECRET": TOOL, "ELEVENLABS_WEBHOOK_SECRET": HOOK}
+    assert Settings.from_env(env).tool_budget_seconds == 2.0
 
 
 def test_from_env_names_what_is_missing() -> None:
@@ -38,6 +47,8 @@ def test_tolerance_defaults_to_the_sdk_value(tolerance: str | None) -> None:
         {"tool_secret": "short", "webhook_secret": HOOK},
         {"tool_secret": TOOL, "webhook_secret": ""},
         {"tool_secret": TOOL, "webhook_secret": HOOK, "webhook_tolerance_seconds": 0},
+        {"tool_secret": TOOL, "webhook_secret": HOOK, "tool_budget_seconds": 0},
+        {"tool_secret": TOOL, "webhook_secret": HOOK, "tool_budget_seconds": float("nan")},
     ],
 )
 def test_weak_or_empty_settings_are_refused(kwargs: dict) -> None:
