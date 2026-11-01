@@ -159,6 +159,7 @@ def test_summary_of_a_transferred_call(conversation_payload: Any) -> None:
         tool_errors=0,
         tool_latency_secs=(),
         transferred=True,
+        substantive=True,
     )
 
 

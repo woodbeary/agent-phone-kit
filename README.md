@@ -116,7 +116,9 @@ The receiver at `POST /webhooks/post-call`:
 3. answers `{"status": "duplicate"}` to a repeat of an event it has already handled,
    keyed on type, conversation ID and event timestamp (a retry carries the same payload);
 4. calls your handler with the event and a `CallSummary`: tools called, tool
-   errors, transfers, duration, and any `tool_latency_secs` ElevenLabs reports.
+   errors, transfers, duration, any `tool_latency_secs` ElevenLabs reports, and
+   `substantive`: whether the caller said anything beyond "hello?", "test" or
+   "mm-hmm" (see [Counting calls](#counting-calls)).
    The default handler logs that summary as one JSON line, with no transcript text.
    Pass your own with `create_app(on_post_call=...)`;
 5. answers 500 if your handler raises, and forgets the event so a retry is processed.
@@ -132,6 +134,22 @@ Two things to know when you deploy:
   `WEBHOOK_TOLERANCE_SECONDS`.
 - Duplicate detection is in memory, per process. With more than one process, use
   a shared store, such as a unique index on the same three fields.
+
+## Counting calls
+
+Hang-ups, "hello?" and test calls inflate call volume and wreck success rates, so
+decide what counts before you show anyone a number.
+`agent_phone_kit.substantive.is_substantive` marks a caller turn as filler when
+every word in it is a greeting or backchannel (`FILLER_WORDS`), or when it is one
+word of four characters or fewer. A call is substantive when any caller turn isn't
+filler.
+
+It is a port of a TypeScript rule from a production phone line, with two bugs
+fixed. That rule stripped hyphens before looking the message up in a list that
+still had them, so "mm-hmm" became "mmhmm" and passed on length; and it only
+matched the whole message, so "hello hello" and "test test" passed.
+`tests/test_substantive.py` is a table of messages with what the old rule said
+next to what the port says. Tune `FILLER_WORDS` for your callers and languages.
 
 ## The initiation webhook
 

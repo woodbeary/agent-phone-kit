@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from agent_phone_kit.signature import SIGNATURE_HEADER, SignatureError, verify_signature
+from agent_phone_kit.substantive import has_substantive_caller_speech
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,9 @@ class CallSummary:
     tool_latency_secs: tuple[float, ...] = ()
     transferred: bool = False
     failure_reason: str | None = None
+    substantive: bool | None = None
+    """Did the caller say anything beyond "hello?" or "test"? None when the event has no
+    transcript (``post_call_audio``, ``call_initiation_failure``)."""
 
 
 PostCallHandler = Callable[[dict[str, Any], CallSummary], None]
@@ -56,7 +60,8 @@ def _as_dict(value: Any) -> dict[str, Any]:
 
 def summarize(event: Mapping[str, Any]) -> CallSummary:
     data = _as_dict(event.get("data"))
-    turns = [_as_dict(turn) for turn in data.get("transcript") or []]
+    transcript = data.get("transcript")
+    turns = [_as_dict(turn) for turn in transcript or []]
     calls = [_as_dict(c) for turn in turns for c in turn.get("tool_calls") or []]
     results = [_as_dict(r) for turn in turns for r in turn.get("tool_results") or []]
     names = tuple(str(call.get("tool_name", "")) for call in calls)
@@ -77,6 +82,9 @@ def summarize(event: Mapping[str, Any]) -> CallSummary:
         ),
         transferred=any(name in TRANSFER_TOOLS for name in names),
         failure_reason=data.get("failure_reason"),
+        substantive=(
+            has_substantive_caller_speech(transcript) if isinstance(transcript, list) else None
+        ),
     )
 
 
