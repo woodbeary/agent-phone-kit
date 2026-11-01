@@ -56,6 +56,9 @@ HUMAN_NUMBER_ENV = "GATE_HUMAN_NUMBER"
 API_KEY_ENV = "ELEVENLABS_API_KEY"
 AGENT_ID_ENV = "ELEVENLABS_AGENT_ID"
 _GATE_ENVS = (AUTH_TOKEN_ENV, HUMAN_NUMBER_ENV, API_KEY_ENV, AGENT_ID_ENV)
+_GATE_SWITCHES = (HUMAN_NUMBER_ENV, PUBLIC_BASE_URL_ENV)
+"""Only the gate reads these, so either one turns it on. The ElevenLabs and Twilio
+tools read the other three too, so having them in the environment doesn't."""
 
 PRESS_ONE = "To reach a person, press 1."
 PRESS_ONE_AGAIN = "Sorry, I didn't get that. To reach a person, press 1."
@@ -277,13 +280,15 @@ class GateSettings:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "GateSettings | None":
-        """The gate's settings, or None when none of its variables are set.
+        """The gate's settings, or None when the gate isn't turned on.
 
-        Setting some but not all of them is an error, not a gate that skips checks.
+        ``GATE_HUMAN_NUMBER`` (or ``TWILIO_PUBLIC_BASE_URL``) turns it on, and then all
+        four of its variables must be set: some but not all is an error, not a gate that
+        skips checks. An ``ELEVENLABS_API_KEY`` or ``TWILIO_AUTH_TOKEN`` exported for
+        other tools doesn't turn it on.
         """
         env = os.environ if environ is None else environ
-        present = [name for name in _GATE_ENVS if env.get(name)]
-        if not present:
+        if not any(env.get(name) for name in _GATE_SWITCHES):
             return None
         missing = [name for name in _GATE_ENVS if not env.get(name)]
         if missing:

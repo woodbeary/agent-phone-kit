@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 
 from agent_phone_kit.app import create_app
 from agent_phone_kit.calls import LEG_HUMAN, LEG_PARENT, CallLeg, SQLiteCallStore
+from agent_phone_kit.settings import Settings
 from agent_phone_kit.signature import SIGNATURE_HEADER, sign_payload
 from agent_phone_kit.twilio_gate import (
     DISCLOSURE,
@@ -486,11 +487,43 @@ def test_no_gate_variables_means_no_gate() -> None:
     assert GateSettings.from_env({}) is None
 
 
-@pytest.mark.parametrize("missing", sorted(ENV))
+@pytest.mark.parametrize("missing", sorted(set(ENV) - {"GATE_HUMAN_NUMBER"}))
 def test_a_partly_configured_gate_refuses_to_start(missing: str) -> None:
     env = {name: value for name, value in ENV.items() if name != missing}
     with pytest.raises(RuntimeError, match=missing):
         GateSettings.from_env(env)
+
+
+def test_the_public_base_url_turns_the_gate_on_too() -> None:
+    env = {"TWILIO_PUBLIC_BASE_URL": PUBLIC, "ELEVENLABS_API_KEY": API_KEY}
+    with pytest.raises(RuntimeError, match="TWILIO_AUTH_TOKEN, GATE_HUMAN_NUMBER"):
+        GateSettings.from_env(env)
+
+
+@pytest.mark.parametrize(
+    "exported",
+    [
+        {"ELEVENLABS_API_KEY": API_KEY},
+        {"TWILIO_AUTH_TOKEN": TOKEN},
+        {name: value for name, value in ENV.items() if name != "GATE_HUMAN_NUMBER"},
+    ],
+    ids=["elevenlabs-key", "twilio-token", "all-but-the-human-number"],
+)
+def test_keys_exported_for_other_tools_do_not_turn_the_gate_on(
+    exported: dict[str, str], phone_kit_settings: Any
+) -> None:
+    # docs/twilio.md has you export ELEVENLABS_API_KEY to import a number with curl.
+    assert GateSettings.from_env(exported) is None
+    settings = Settings.from_env(
+        {
+            "TOOL_BEARER_SECRET": phone_kit_settings.tool_secret,
+            "ELEVENLABS_WEBHOOK_SECRET": phone_kit_settings.webhook_secret,
+            "CALL_STORE_PATH": phone_kit_settings.call_store_path,
+            **exported,
+        }
+    )
+    assert settings.gate is None
+    assert TestClient(create_app(settings)).post("/twilio/voice").status_code == 404
 
 
 @pytest.mark.parametrize(

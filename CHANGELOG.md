@@ -23,7 +23,8 @@
 - A press-1 gate on your own Twilio number (`/twilio/voice`, `/twilio/gate`,
   `/twilio/dial-result`) with ElevenLabs' register-call as the fallback. It checks
   `X-Twilio-Signature` against every URL a proxy could have rewritten, fails
-  closed, and normalizes numbers to E.164.
+  closed, and normalizes numbers to E.164. `GATE_HUMAN_NUMBER` turns it on; an
+  `ELEVENLABS_API_KEY` or `TWILIO_AUTH_TOKEN` exported for other tools doesn't.
 - `agent-phone-kit` command: `lint` (consent in the agent's first message, run in
   CI), `post-call` (sign and send a saved webhook body) and `stats`.
 - `docs/demo.md`, a two-minute demo on the claim-status tool.

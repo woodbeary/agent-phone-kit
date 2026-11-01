@@ -90,9 +90,11 @@ connect the call to the agent only if nobody picks up. The kit's gate does this:
    caller hears "Sorry, we can't take your call right now" instead of Twilio's
    application error.
 
-Turn it on by setting all four of `TWILIO_AUTH_TOKEN`, `GATE_HUMAN_NUMBER`,
-`ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID`. Setting some but not all stops the
-app from starting. Then set the Twilio number's voice webhook to
+Turn it on by setting `GATE_HUMAN_NUMBER` along with `TWILIO_AUTH_TOKEN`,
+`ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID`. Once `GATE_HUMAN_NUMBER` (or
+`TWILIO_PUBLIC_BASE_URL`) is set, a missing one of the others stops the app from
+starting. An `ELEVENLABS_API_KEY` or `TWILIO_AUTH_TOKEN` you exported for other
+tools, like the `curl` in step 2, doesn't turn the gate on. Then set the Twilio number's voice webhook to
 `POST https://YOUR-HOST/twilio/voice`. You can add `?line=+1...` to that URL to
 tell the agent which of your lines was called; it arrives as the `line` dynamic
 variable, normalized to E.164.
