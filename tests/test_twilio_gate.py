@@ -7,8 +7,6 @@ API served on 127.0.0.1. All numbers are in the 555-01XX range reserved for fict
 
 import json
 import socket
-import threading
-import time
 from collections.abc import Iterator
 from dataclasses import replace
 from typing import Any
@@ -16,7 +14,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 from xml.etree import ElementTree as ET
 
 import pytest
-import uvicorn
+from conftest import serve_on_loopback
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse, Response
 from fastapi.testclient import TestClient
@@ -165,21 +163,9 @@ class FakeElevenLabs:
 @pytest.fixture(scope="module")
 def fake_elevenlabs() -> Iterator[FakeElevenLabs]:
     fake = FakeElevenLabs()
-    config = uvicorn.Config(
-        fake.app(), host="127.0.0.1", port=0, log_level="warning", lifespan="off"
-    )
-    server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 10
-    while not server.started:
-        assert time.monotonic() < deadline, "fake ElevenLabs did not start"
-        time.sleep(0.01)
-    port = server.servers[0].sockets[0].getsockname()[1]
-    fake.base_url = f"http://127.0.0.1:{port}"
-    yield fake
-    server.should_exit = True
-    thread.join(10)
+    with serve_on_loopback(fake.app()) as base_url:
+        fake.base_url = base_url
+        yield fake
 
 
 @pytest.fixture

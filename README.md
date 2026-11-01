@@ -340,6 +340,8 @@ store's tests on PostgreSQL.
   ElevenLabs API on loopback, including its failures; E.164 normalization; and the
   gate's call legs landing on one record. The SDK job checks the register-call
   body against the SDK's own parameters.
+- **Command:** the demo's received, duplicate, thinner-late-copy, forged and stale
+  steps against the kit served on `127.0.0.1`, and `stats` on the result.
 - **Consent lint:** recorded with and without a disclosure, no first message,
   `record_voice` unset or false, interruptions allowed, a table of disclosure
   wording, and the command's exit codes, run in-process and as `python -m`.
@@ -347,13 +349,30 @@ store's tests on PostgreSQL.
   route and request model, and the phone-number bodies hold only placeholders.
 
 Not tested here: a live call through ElevenLabs, Twilio or a SIP trunk, or a
-real register-call; whether
-`result_value` in a real exported call is the raw response body, as replay
-assumes (the fixtures follow the transcript types in ElevenLabs' SDK);
-performance. There are no latency numbers in this repo.
-To measure tool latency on your own deployment, place real calls and read
-`tool_latency_secs` from the post-call log lines when ElevenLabs reports it, or
-time requests at your server. Report the count of calls with any percentile.
+real register-call; whether `result_value` in a real exported call is the raw
+response body, as replay assumes (the fixtures follow the transcript types in
+ElevenLabs' SDK); performance. There are no latency numbers in this repo.
+To measure tool latency on your own deployment, place real calls and run
+`agent-phone-kit stats` against the call store: it reports the call count, the
+substantive call rate, and nearest-rank p50 and p95 of every `tool_latency_secs`
+ElevenLabs reported, with how many tool results that is. Report those numbers
+with the call count and that method.
+
+## The command
+
+`agent-phone-kit` has three subcommands:
+
+- `lint agent.json`: the consent lint (exit 1 on a problem, 2 on unreadable input).
+- `post-call body.json [--later S] [--drop data.analysis] [--stale S] [--forge]`:
+  signs a saved post-call body the way ElevenLabs does and POSTs it to the kit
+  (default `http://127.0.0.1:8000/webhooks/post-call`, or `--url`). The secret
+  comes from `ELEVENLABS_WEBHOOK_SECRET`, never the command line. One command each
+  shows a duplicate, a thinner late copy, a stale signature and a forged body.
+- `stats [--db calls.sqlite3] [--since UNIX_SECONDS]`: raw volume, substantive
+  call rate and tool latency from the call store.
+
+[docs/demo.md](docs/demo.md) is a two-minute demo built on them and the
+claim-status tool.
 
 ## Layout
 
