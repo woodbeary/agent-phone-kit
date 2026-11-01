@@ -24,6 +24,7 @@ are the recipe; ``docs/postgres.md`` shows them with PostgreSQL placeholders.
 """
 
 import json
+import math
 import re
 import sqlite3
 import threading
@@ -112,6 +113,51 @@ class CallRecord:
     """Every call SID seen for this conversation, parent first."""
     event_types: tuple[str, ...] = ()
     """Read only: the event types merged so far."""
+
+
+@dataclass(frozen=True)
+class CallVolume:
+    """Raw call volume next to the substantive call rate, and the tool latency."""
+
+    calls: int
+    """Every conversation with a record: the raw volume."""
+    substantive_calls: int
+    """Calls where the caller said something beyond "hello?", "test" or "mm-hmm"."""
+    unknown_calls: int
+    """Calls with no transcript event yet (only audio, or a failed initiation)."""
+    tool_results: int
+    """How many tool results reported ``tool_latency_secs``."""
+    tool_latency_p50: float | None = None
+    tool_latency_p95: float | None = None
+
+    @property
+    def substantive_call_rate(self) -> float | None:
+        """Substantive calls over raw volume; None with no calls."""
+        return self.substantive_calls / self.calls if self.calls else None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "calls": self.calls,
+            "substantive_calls": self.substantive_calls,
+            "substantive_call_rate": (
+                None if self.substantive_call_rate is None else round(self.substantive_call_rate, 4)
+            ),
+            "unknown_calls": self.unknown_calls,
+            "tool_results": self.tool_results,
+            "tool_latency_p50_secs": self.tool_latency_p50,
+            "tool_latency_p95_secs": self.tool_latency_p95,
+        }
+
+
+def nearest_rank(values: Sequence[float], percent: float) -> float | None:
+    """The nearest-rank percentile: the smallest value with ``percent``% at or below it."""
+    if not values:
+        return None
+    if not 0 < percent <= 100:
+        raise ValueError("percent must be in (0, 100]")
+    ordered = sorted(values)
+    rank = max(1, math.ceil(percent / 100 * len(ordered)))
+    return ordered[rank - 1]
 
 
 class Claim(Enum):
@@ -378,6 +424,16 @@ _LEGS_SQL = """SELECT call_sid, leg FROM call_legs WHERE conversation_id = :conv
 _EVENT_TYPES_SQL = """SELECT DISTINCT event_type FROM call_events
 WHERE conversation_id = :conversation_id AND state = 'done' ORDER BY event_type"""
 
+_VOLUME_SQL = """SELECT COUNT(*),
+    COALESCE(SUM(CASE WHEN substantive THEN 1 ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN substantive IS NULL THEN 1 ELSE 0 END), 0)
+FROM calls
+WHERE CAST(:since AS BIGINT) IS NULL OR COALESCE(started_at, first_event_at) >= :since"""
+
+_LATENCY_SQL = """SELECT tool_latency_secs FROM calls
+WHERE tool_latency_secs IS NOT NULL
+    AND (CAST(:since AS BIGINT) IS NULL OR COALESCE(started_at, first_event_at) >= :since)"""
+
 _NAMED = re.compile(r"(?<![\w:']):([a-z_]+)")
 
 
@@ -492,6 +548,25 @@ class SqlCallStore:
         types = tuple(str(row[0]) for row in self._query(_EVENT_TYPES_SQL, params))
         legs = _ordered(CallLeg(str(sid), str(leg)) for sid, leg in self._query(_LEGS_SQL, params))
         return _from_row(rows[0], legs, types)
+
+    def volume(self, *, since: int | None = None) -> CallVolume:
+        """Raw volume, substantive calls and tool latency for calls since ``since``
+        (unix seconds, by start time), or for every call."""
+        params = {"since": since}
+        calls, substantive, unknown = self._query(_VOLUME_SQL, params)[0]
+        latencies = [
+            float(value)
+            for (column,) in self._query(_LATENCY_SQL, params)
+            for value in json.loads(column)
+        ]
+        return CallVolume(
+            calls=int(calls),
+            substantive_calls=int(substantive),
+            unknown_calls=int(unknown),
+            tool_results=len(latencies),
+            tool_latency_p50=nearest_rank(latencies, 50),
+            tool_latency_p95=nearest_rank(latencies, 95),
+        )
 
     def close(self) -> None:
         with self._lock:

@@ -195,6 +195,21 @@ matched the whole message, so "hello hello" and "test test" passed.
 `tests/test_substantive.py` is a table of messages with what the old rule said
 next to what the port says. Tune `FILLER_WORDS` for your callers and languages.
 
+`store.volume()` reports raw volume next to the substantive call rate, from the
+call records:
+
+```python
+>>> store.volume(since=1767225600).as_dict()
+{'calls': 6, 'substantive_calls': 2, 'substantive_call_rate': 0.3333, 'unknown_calls': 1,
+ 'tool_results': 3, 'tool_latency_p50_secs': 0.4, 'tool_latency_p95_secs': 1.9}
+```
+
+`calls` counts every conversation with a record; `substantive_call_rate` is
+substantive calls over that. `unknown_calls` had no transcript event (only audio,
+or a call that failed to start). The latency percentiles are nearest-rank over
+every `tool_latency_secs` ElevenLabs reported in those calls, with the count next
+to them (`tool_results`). The numbers above are from the synthetic test data.
+
 ## The initiation webhook
 
 For inbound Twilio and SIP calls, ElevenLabs can ask your server for dynamic

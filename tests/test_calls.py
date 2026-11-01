@@ -24,6 +24,7 @@ from agent_phone_kit.calls import (
     SqlCallStore,
     SQLiteCallStore,
     legs_from_event,
+    nearest_rank,
     record_from_event,
 )
 from agent_phone_kit.signature import SIGNATURE_HEADER, sign_payload
@@ -559,3 +560,84 @@ def test_the_default_store_is_a_sqlite_file_at_the_configured_path(
     store = SQLiteCallStore(phone_kit_settings.call_store_path)
     assert full_record(store, "conv_synthetic_0001").summary
     store.close()
+
+
+# --- volume --------------------------------------------------------------------------
+
+
+def call(conversation_id: str, *caller_lines: str, latency: tuple[float, ...] = ()) -> dict:
+    turns: list[dict[str, Any]] = [{"role": "agent", "message": "Claims line. How can I help?"}]
+    turns += [{"role": "user", "message": line} for line in caller_lines]
+    if latency:
+        turns.append(
+            {
+                "role": "agent",
+                "tool_results": [
+                    {"tool_name": "claim_status", "is_error": False, "tool_latency_secs": value}
+                    for value in latency
+                ],
+            }
+        )
+    return {
+        "type": "post_call_transcription",
+        "event_timestamp": 1767230000,
+        "data": {
+            "conversation_id": conversation_id,
+            "transcript": turns,
+            "metadata": {"start_time_unix_secs": 1767229000},
+        },
+    }
+
+
+def test_volume_reports_the_substantive_rate_next_to_raw_volume(
+    make_store: StoreFactory,
+) -> None:
+    store = make_store()
+    for event in (
+        call("conv_a", "Is claim one zero zero one paid?", latency=(0.2, 0.4)),
+        call("conv_b", "hello?", "hello hello"),
+        call("conv_c", "mm-hmm"),
+        call("conv_d", "test test"),
+        call("conv_e", "I need an adjuster for my claim", latency=(1.9,)),
+    ):
+        store.merge(record_from_event(event))
+    audio_only = {"type": "post_call_audio", "event_timestamp": 1767230005, "data": {}}
+    audio_only["data"]["conversation_id"] = "conv_f"
+    store.merge(record_from_event(audio_only))
+
+    volume = store.volume()
+    assert (volume.calls, volume.substantive_calls, volume.unknown_calls) == (6, 2, 1)
+    assert volume.substantive_call_rate == pytest.approx(2 / 6)
+    assert volume.tool_results == 3
+    assert (volume.tool_latency_p50, volume.tool_latency_p95) == (0.4, 1.9)
+    assert volume.as_dict()["substantive_call_rate"] == 0.3333
+
+
+def test_volume_since_counts_only_later_calls(make_store: StoreFactory) -> None:
+    store = make_store()
+    store.merge(record_from_event(call("conv_old", "where is my claim")))
+    later = call("conv_new", "where is my claim", latency=(0.5,))
+    later["data"]["metadata"]["start_time_unix_secs"] = 1767300000
+    store.merge(record_from_event(later))
+    volume = store.volume(since=1767250000)
+    assert (volume.calls, volume.substantive_calls, volume.tool_results) == (1, 1, 1)
+
+
+def test_volume_of_an_empty_store(make_store: StoreFactory) -> None:
+    volume = make_store().volume()
+    assert (volume.calls, volume.substantive_call_rate, volume.tool_latency_p50) == (0, None, None)
+
+
+@pytest.mark.parametrize(
+    ("values", "percent", "expected"),
+    [
+        ([], 50, None),
+        ([3.0], 95, 3.0),
+        ([1.0, 2.0, 3.0, 4.0], 50, 2.0),
+        ([1.0, 2.0, 3.0, 4.0], 95, 4.0),
+        ([float(n) for n in range(1, 21)], 95, 19.0),
+        ([float(n) for n in range(1, 21)], 50, 10.0),
+    ],
+)
+def test_nearest_rank(values: list[float], percent: float, expected: float | None) -> None:
+    assert nearest_rank(values, percent) == expected
