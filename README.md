@@ -329,7 +329,9 @@ store's tests on PostgreSQL.
   third CI job runs the same store tests on PostgreSQL 16, including two
   connections folding events into one record and racing for one claim.
 - **Replay and plugin:** the synthetic conversations in `tests/conversations`
-  (including a native Twilio call with a `transfer_to_number`)
+  (including a native Twilio call with a `transfer_to_number` and an in-browser
+  widget conversation, which has no phone metadata; the receiver and replay treat
+  it the same)
   replay cleanly; a changed tool answer fails with a diff; the plugin is run
   inside throwaway projects with `pytester`, including an app override.
 - **Twilio gate:** a signature vector computed with `openssl`; a `+1` number in

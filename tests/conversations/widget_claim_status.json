@@ -1,0 +1,98 @@
+{
+  "type": "post_call_transcription",
+  "event_timestamp": 1767243630,
+  "data": {
+    "agent_id": "agent_synthetic_claims_line",
+    "conversation_id": "conv_synthetic_0005",
+    "status": "done",
+    "transcript": [
+      {
+        "role": "agent",
+        "message": "Thanks for calling the claims line. I'm an AI assistant, and this conversation is recorded. How can I help?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 0
+      },
+      {
+        "role": "user",
+        "message": "What do you still need for claim c l m one zero zero three?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 4
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": [
+          {
+            "type": "webhook",
+            "request_id": "req_0005_a",
+            "tool_name": "claim_status",
+            "params_as_json": "{\"claim_number\": \"clm 1003\", \"conversation_id\": \"conv_synthetic_0005\"}",
+            "tool_has_been_called": true,
+            "tool_details": {
+              "type": "webhook",
+              "method": "POST",
+              "url": "https://tools.example.com/tools/claim-status",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "path_params": {},
+              "query_params": {},
+              "body": "{\"claim_number\": \"clm 1003\", \"conversation_id\": \"conv_synthetic_0005\"}"
+            }
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 7
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": null,
+        "tool_results": [
+          {
+            "type": "webhook",
+            "request_id": "req_0005_a",
+            "tool_name": "claim_status",
+            "result_value": "{\"found\":true,\"claim_number\":\"CLM-1003\",\"status\":\"waiting on documents\",\"next_step\":\"Upload the repair invoice to finish the review.\",\"message\":\"Claim CLM-1003 is waiting on documents. Upload the repair invoice to finish the review.\"}",
+            "is_error": false,
+            "tool_has_been_called": true,
+            "tool_latency_secs": 0.27
+          }
+        ],
+        "time_in_call_secs": 8
+      },
+      {
+        "role": "agent",
+        "message": "Claim CLM-1003 is waiting on documents. Upload the repair invoice to finish the review.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 9
+      },
+      {
+        "role": "user",
+        "message": "Okay, thanks.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 15
+      }
+    ],
+    "metadata": {
+      "start_time_unix_secs": 1767243600,
+      "call_duration_secs": 24,
+      "conversation_initiation_source": "widget",
+      "text_only": false
+    },
+    "analysis": {
+      "call_successful": "success",
+      "transcript_summary": "Synthetic widget conversation. Claim CLM-1003 is waiting on the repair invoice."
+    },
+    "conversation_initiation_client_data": {
+      "dynamic_variables": {}
+    },
+    "has_audio": false,
+    "has_user_audio": false,
+    "has_response_audio": false
+  }
+}

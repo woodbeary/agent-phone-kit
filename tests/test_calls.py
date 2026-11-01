@@ -552,6 +552,22 @@ def test_the_transfer_fixture_through_the_webhook(
     assert record.termination_reason == "Call transferred to +12025550199"
 
 
+def test_a_widget_conversation_is_received_like_a_phone_call(
+    phone_kit_settings: Any, store: SQLiteCallStore, conversation_payload: Any
+) -> None:
+    # In-browser (WebRTC) conversations have no phone_call metadata and no call SIDs.
+    # The receiver and the record don't depend on the channel.
+    handler = Handler()
+    client = TestClient(create_app(phone_kit_settings, store=store, on_post_call=handler))
+    widget = conversation_payload("widget_claim_status.json")
+    assert post(client, phone_kit_settings.webhook_secret, widget).json() == {"status": "received"}
+    record = full_record(store, "conv_synthetic_0005")
+    assert record.legs == ()
+    assert record.substantive is True
+    assert record.tools_called == ("claim_status",)
+    assert handler.events == ["post_call_transcription"]
+
+
 def test_the_default_store_is_a_sqlite_file_at_the_configured_path(
     phone_kit_settings: Any, transcription: dict[str, Any]
 ) -> None:
