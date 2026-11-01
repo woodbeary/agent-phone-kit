@@ -18,7 +18,7 @@
   its record; `add_leg()` adds ones your own callbacks see.
 - `is_substantive()` and `CallSummary.substantive`, ported from a production
   TypeScript rule with two bugs fixed ("mm-hmm"/"uh-huh" and repeated filler like
-  "hello hello" used to count). `store.volume()` reports the substantive call rate
+  "hello hello" or "um um" used to count). `store.volume()` reports the substantive call rate
   next to raw volume, with tool latency p50 and p95.
 - A press-1 gate on your own Twilio number (`/twilio/voice`, `/twilio/gate`,
   `/twilio/dial-result`) with ElevenLabs' register-call as the fallback. It checks

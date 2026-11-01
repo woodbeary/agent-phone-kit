@@ -200,13 +200,14 @@ Hang-ups, "hello?" and test calls inflate call volume and wreck success rates, s
 decide what counts before you show anyone a number.
 `agent_phone_kit.substantive.is_substantive` marks a caller turn as filler when
 every word in it is a greeting or backchannel (`FILLER_WORDS`), or when it is one
-word of four characters or fewer. A call is substantive when any caller turn isn't
-filler.
+word of four characters or fewer, said once or repeated ("what", "um um"). A call
+is substantive when any caller turn isn't filler.
 
 It is a port of a TypeScript rule from a production phone line, with two bugs
 fixed. That rule stripped hyphens before looking the message up in a list that
-still had them, so "mm-hmm" became "mmhmm" and passed on length; and it only
-matched the whole message, so "hello hello" and "test test" passed.
+still had them, so "mm-hmm" became "mmhmm" and passed on length (the list now
+also has the halves, for "mm hmm" and "uh huh" spelled with a space); and it only
+matched the whole message, so "hello hello", "test test" and "um um" passed.
 `tests/test_substantive.py` is a table of messages with what the old rule said
 next to what the port says. Tune `FILLER_WORDS` for your callers and languages.
 

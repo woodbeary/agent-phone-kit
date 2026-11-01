@@ -3,8 +3,8 @@
 Hang-ups, "hello?" and test calls inflate call volume and wreck success rates.
 A call counts as substantive when the caller said at least one thing that isn't
 filler. A caller turn is filler when every word in it is a greeting or a
-backchannel ("hello", "test", "mm-hmm"), or when it is a single word of four
-characters or fewer ("yeah", "what").
+backchannel ("hello", "test", "mm-hmm"), or when it is one word of four
+characters or fewer, said once or repeated ("yeah", "what", "um um").
 
 Ported from a production TypeScript rule, with two bugs fixed:
 
@@ -14,7 +14,11 @@ Ported from a production TypeScript rule, with two bugs fixed:
   the message are normalized the same way.
 * The old rule only matched the whole message against the list, so repeated
   filler ("hello hello", "test test", "Hello? Hello?") passed. Here every word is
-  checked.
+  checked, and a word said twice counts once, so "um um" and "yeah yeah" are as
+  short as "um" and "yeah".
+
+The list also has the halves of "uh-huh" and "mm-hmm", since a transcript can
+spell them "uh huh" and "mm hmm".
 
 Punctuation no longer counts toward length, so "What?" is as short as "what"
 and "hello??" is filler like "hello?". Change ``FILLER_WORDS`` for your callers
@@ -39,6 +43,11 @@ FILLER_WORDS = frozenset(
         "mmhmm",
         "mhm",
         "uhhuh",
+        "uh",
+        "huh",
+        "um",
+        "mm",
+        "hmm",
     }
 )
 """Words that never make a turn substantive, normalized: lowercase, no punctuation."""
@@ -61,7 +70,7 @@ def is_substantive(message: str | None) -> bool:
     words = caller_words(message or "")
     if not words or all(word in FILLER_WORDS for word in words):
         return False
-    return len(words) >= 2 or len(words[0]) >= 5
+    return len(set(words)) >= 2 or len(words[0]) >= 5
 
 
 def _turn_text(turn: Mapping[str, Any]) -> str:

@@ -30,6 +30,13 @@ TABLE = [
     ("testing testing", False, True),
     ("yes yes", False, True),
     ("hi, hello, hey", False, True),
+    ("um um", False, True),
+    ("Um, um.", False, True),
+    ("yeah yeah", False, True),
+    ("bye bye", False, True),
+    # Bug 1 again: the same backchannels spelled with a space.
+    ("uh huh", False, True),
+    ("Mm hmm.", False, True),
     # Punctuation counted toward length.
     ("hello??", False, True),
     ("What?", False, True),
@@ -39,6 +46,8 @@ TABLE = [
     ("hello.", False, False),
     ("Hi.", False, False),
     ("mhm", False, False),
+    ("hmm", False, False),
+    ("um", False, False),
     ("ok", False, False),
     ("okay.", False, False),
     ("Yeah.", False, False),
@@ -52,6 +61,8 @@ TABLE = [
     ("¿Dónde está mi reclamo?", True, True),
     ("hello, I'm calling about a claim", True, True),
     ("uh-huh, the claim from March", True, True),
+    ("yeah, the claim from March", True, True),
+    ("help me", True, True),
 ]
 
 
@@ -62,7 +73,7 @@ def test_is_substantive(message: str, expected: bool, old: bool) -> None:
 
 def test_the_table_records_both_bugs() -> None:
     fixed = {message for message, expected, old in TABLE if expected != old}
-    assert {"mm-hmm", "uh-huh", "hello hello", "test test"} <= fixed
+    assert {"mm-hmm", "uh-huh", "uh huh", "hello hello", "test test", "um um"} <= fixed
 
 
 def test_hyphens_and_apostrophes_join_words() -> None:
