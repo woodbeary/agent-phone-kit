@@ -158,12 +158,22 @@ updates once broke. `agent_phone_kit.calls.CallStore` keeps one record per
   merged only fills fields that are still empty. It never overwrites a newer value.
 - **Events fold together.** The transcription's summary, tools and duration and
   the audio event's arrival end up on the same record, in either order.
+- **Call legs fold together.** One call can be several Twilio calls: the inbound
+  call your gate answered, a `<Dial>` to a person who didn't pick up, the call the
+  agent was on, a transfer. The record keeps every call SID it has seen, labeled
+  `parent`, `human`, `agent` or `transfer`, and no later event drops one. The
+  agent's leg comes from `metadata.phone_call.call_sid`; the gate below passes the
+  parent and human legs as the `parent_call_sid` and `human_call_sid` dynamic
+  variables; your own transfer callbacks add theirs with `store.add_leg(...)`. For a
+  native Twilio `transfer_to_number`, ElevenLabs reports the conference it put the
+  caller in, not the new leg's SID, so the record keeps `transfer_conference`; the
+  transferred leg is a participant of that conference in Twilio.
 
 The record holds the agent, status, start time, duration, termination reason,
 `call_successful`, ElevenLabs' transcript summary, failure reason, tools called,
 tool errors, `tool_latency_secs`, whether it was transferred, whether it was
-substantive, whether audio arrived, the first and last event timestamps, and the
-event types merged. It holds no transcript text and no audio. Read it with
+substantive, whether audio arrived, the transfer conference, the call legs, the
+first and last event timestamps, and the event types merged. It holds no transcript text and no audio. Read it with
 `store.get(conversation_id)`, or pass your own store with `create_app(store=...)`.
 
 `tests/test_calls.py` sends the same webhook twice, then a thinner copy a minute
@@ -271,7 +281,8 @@ store's tests on PostgreSQL.
   restart, and a claim abandoned by a crash being reclaimed after 5 minutes. A
   third CI job runs the same store tests on PostgreSQL 16, including two
   connections folding events into one record and racing for one claim.
-- **Replay and plugin:** the three synthetic conversations in `tests/conversations`
+- **Replay and plugin:** the synthetic conversations in `tests/conversations`
+  (including a native Twilio call with a `transfer_to_number`)
   replay cleanly; a changed tool answer fails with a diff; the plugin is run
   inside throwaway projects with `pytester`, including an app override.
 - **Examples:** the tool config's URL, method and body fields match the app's

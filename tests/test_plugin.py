@@ -25,7 +25,7 @@ def test_each_conversation_file_becomes_a_test(pytester: pytest.Pytester) -> Non
         shutil.copy(path, calls / path.name)
     pytester.makepyfile(test_inner=INNER_TEST)
     result = pytester.runpytest("-v")
-    result.assert_outcomes(passed=3)
+    result.assert_outcomes(passed=len(list(CONVERSATIONS.glob("*.json"))))
     result.stdout.fnmatch_lines(["*test_replay?claim_approved? PASSED*"])
 
 

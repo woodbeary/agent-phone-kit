@@ -12,12 +12,18 @@ from fastapi.testclient import TestClient
 
 from agent_phone_kit.app import create_app
 from agent_phone_kit.calls import (
+    LEG_AGENT,
+    LEG_HUMAN,
+    LEG_PARENT,
+    LEG_TRANSFER,
+    CallLeg,
     CallRecord,
     Claim,
     EventKey,
     PostgresCallStore,
     SqlCallStore,
     SQLiteCallStore,
+    legs_from_event,
     record_from_event,
 )
 from agent_phone_kit.signature import SIGNATURE_HEADER, sign_payload
@@ -72,7 +78,7 @@ def make_store(
         else:
             connection = psycopg.connect(dsn, autocommit=True)
             if not shared:
-                connection.execute("DROP TABLE IF EXISTS calls, call_events")
+                connection.execute("DROP TABLE IF EXISTS calls, call_events, call_legs")
             store = PostgresCallStore(connection, **options)
         stores.append(store)
         return store
@@ -234,6 +240,88 @@ def test_audio_marks_the_record_and_keeps_everything_else(
 
 def test_unknown_conversation_is_none(make_store: StoreFactory) -> None:
     assert make_store().get("conv_never_seen") is None
+
+
+# --- call legs ----------------------------------------------------------------------
+
+PARENT = "CA00000000000000000000000000000010"
+HUMAN = "CA00000000000000000000000000000011"
+TRANSFERRED = "CA00000000000000000000000000000012"
+
+
+@pytest.fixture
+def transfer_call(conversation_payload: Any) -> dict[str, Any]:
+    return conversation_payload("twilio_transfer_to_number.json")
+
+
+def gate_event(transcription: dict[str, Any]) -> dict[str, Any]:
+    """A call the register-call gate handed to the agent after a person didn't answer."""
+    event = copy.deepcopy(transcription)
+    event["data"]["conversation_initiation_client_data"]["dynamic_variables"].update(
+        {"parent_call_sid": PARENT, "human_call_sid": HUMAN}
+    )
+    # On register-call the agent streams on the caller's own call: the parent SID.
+    event["data"]["metadata"]["phone_call"] = {"type": "twilio", "call_sid": PARENT}
+    return event
+
+
+def test_a_native_twilio_transfer_names_its_leg_and_conference(
+    transfer_call: dict[str, Any],
+) -> None:
+    record = record_from_event(transfer_call)
+    assert record.legs == (CallLeg("CA00000000000000000000000000000004", LEG_AGENT),)
+    assert record.transferred is True
+    assert record.transfer_conference == "transfer_conf_synthetic_0004"
+    assert record.tool_latency_secs == (0.31,)
+
+
+def test_the_gate_legs_come_from_dynamic_variables(transcription: dict[str, Any]) -> None:
+    assert legs_from_event(gate_event(transcription)) == (
+        CallLeg(PARENT, LEG_PARENT),
+        CallLeg(HUMAN, LEG_HUMAN),
+    )
+
+
+def test_an_event_without_call_sids_has_no_legs(transcription: dict[str, Any]) -> None:
+    assert legs_from_event(transcription) == ()
+    assert (
+        legs_from_event({"type": "x", "data": {"metadata": {"phone_call": {"call_sid": " "}}}})
+        == ()
+    )
+
+
+def test_legs_fold_onto_one_record_and_later_events_never_drop_them(
+    make_store: StoreFactory, transcription: dict[str, Any]
+) -> None:
+    store = make_store()
+    store.merge(record_from_event(gate_event(transcription)))
+    store.add_leg("conv_synthetic_0001", TRANSFERRED)
+    store.merge(record_from_event(thinner(transcription)))
+    store.merge(record_from_event(audio_event(transcription)))
+    store.merge(record_from_event(gate_event(transcription)))
+    assert full_record(store, "conv_synthetic_0001").legs == (
+        CallLeg(PARENT, LEG_PARENT),
+        CallLeg(HUMAN, LEG_HUMAN),
+        CallLeg(TRANSFERRED, LEG_TRANSFER),
+    )
+
+
+def test_a_leg_reported_before_the_webhook_is_on_the_record(
+    make_store: StoreFactory, transfer_call: dict[str, Any]
+) -> None:
+    store = make_store()
+    store.add_leg("conv_synthetic_0004", TRANSFERRED, LEG_TRANSFER)
+    assert store.get("conv_synthetic_0004") is None
+    store.merge(record_from_event(transfer_call))
+    assert [leg.call_sid for leg in full_record(store, "conv_synthetic_0004").legs] == [
+        "CA00000000000000000000000000000004",
+        TRANSFERRED,
+    ]
+
+
+def test_an_empty_call_sid_is_refused(make_store: StoreFactory) -> None:
+    with pytest.raises(ValueError):
+        make_store().add_leg("conv_synthetic_0001", "  ")
 
 
 # --- claims --------------------------------------------------------------------------
@@ -449,6 +537,18 @@ def test_a_handler_failure_keeps_the_record_and_the_retry_is_processed(
     assert post(client, secret, transcription).json() == {"status": "received"}
     assert handler.events == ["post_call_transcription"]
     assert full_record(store, "conv_synthetic_0001").event_types == ("post_call_transcription",)
+
+
+def test_the_transfer_fixture_through_the_webhook(
+    phone_kit_settings: Any, store: SQLiteCallStore, transfer_call: dict[str, Any]
+) -> None:
+    client = TestClient(create_app(phone_kit_settings, store=store, on_post_call=Handler()))
+    assert post(client, phone_kit_settings.webhook_secret, transfer_call).status_code == 200
+    store.add_leg("conv_synthetic_0004", TRANSFERRED)  # from your own transfer callback
+    record = full_record(store, "conv_synthetic_0004")
+    assert [leg.leg for leg in record.legs] == [LEG_AGENT, LEG_TRANSFER]
+    assert record.transfer_conference == "transfer_conf_synthetic_0004"
+    assert record.termination_reason == "Call transferred to +12025550199"
 
 
 def test_the_default_store_is_a_sqlite_file_at_the_configured_path(

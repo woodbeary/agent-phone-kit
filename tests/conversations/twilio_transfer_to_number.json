@@ -1,0 +1,140 @@
+{
+  "type": "post_call_transcription",
+  "event_timestamp": 1767240063,
+  "data": {
+    "agent_id": "agent_synthetic_claims_line",
+    "conversation_id": "conv_synthetic_0004",
+    "status": "done",
+    "transcript": [
+      {
+        "role": "agent",
+        "message": "Thanks for calling the claims line. This call is recorded, and I'm an AI assistant. How can I help?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 0
+      },
+      {
+        "role": "user",
+        "message": "Hi, I'm checking on claim C L M one zero zero two.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 6
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": [
+          {
+            "type": "webhook",
+            "request_id": "req_0004_a",
+            "tool_name": "claim_status",
+            "params_as_json": "{\"claim_number\": \"CLM-1002\", \"conversation_id\": \"conv_synthetic_0004\"}",
+            "tool_has_been_called": true,
+            "tool_details": {
+              "type": "webhook",
+              "method": "POST",
+              "url": "https://tools.example.com/tools/claim-status",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "path_params": {},
+              "query_params": {},
+              "body": "{\"claim_number\": \"CLM-1002\", \"conversation_id\": \"conv_synthetic_0004\"}"
+            }
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 10
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": null,
+        "tool_results": [
+          {
+            "type": "webhook",
+            "request_id": "req_0004_a",
+            "tool_name": "claim_status",
+            "result_value": "{\"found\":true,\"claim_number\":\"CLM-1002\",\"status\":\"in review\",\"next_step\":\"An adjuster will call within two business days.\",\"message\":\"Claim CLM-1002 is in review. An adjuster will call within two business days.\"}",
+            "is_error": false,
+            "tool_has_been_called": true,
+            "tool_latency_secs": 0.31
+          }
+        ],
+        "time_in_call_secs": 11
+      },
+      {
+        "role": "agent",
+        "message": "Claim CLM-1002 is in review. An adjuster will call within two business days.",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 12
+      },
+      {
+        "role": "user",
+        "message": "Can I talk to the adjuster now?",
+        "tool_calls": null,
+        "tool_results": null,
+        "time_in_call_secs": 19
+      },
+      {
+        "role": "agent",
+        "message": "Let me connect you.",
+        "tool_calls": [
+          {
+            "type": "system",
+            "request_id": "req_0004_b",
+            "tool_name": "transfer_to_number",
+            "params_as_json": "{\"reason\": \"caller asked for the adjuster\"}",
+            "tool_has_been_called": true,
+            "tool_details": null
+          }
+        ],
+        "tool_results": null,
+        "time_in_call_secs": 21
+      },
+      {
+        "role": "agent",
+        "message": null,
+        "tool_calls": null,
+        "tool_results": [
+          {
+            "type": "system",
+            "request_id": "req_0004_b",
+            "tool_name": "transfer_to_number",
+            "result_value": "{\"status\":\"success\",\"transfer_number\":\"+12025550199\",\"reason\":\"caller asked for the adjuster\",\"client_message\":\"Connecting you to an adjuster now.\",\"agent_message\":\"Synthetic caller asked about claim CLM-1002 and wants an adjuster.\",\"conference_name\":\"transfer_conf_synthetic_0004\",\"note\":\"\"}",
+            "is_error": false,
+            "tool_has_been_called": true
+          }
+        ],
+        "time_in_call_secs": 22
+      }
+    ],
+    "metadata": {
+      "start_time_unix_secs": 1767240000,
+      "call_duration_secs": 58,
+      "termination_reason": "Call transferred to +12025550199",
+      "phone_call": {
+        "type": "twilio",
+        "direction": "inbound",
+        "phone_number_id": "phnum_synthetic_0001",
+        "agent_number": "+12025550100",
+        "external_number": "+12025550143",
+        "stream_sid": "MZ00000000000000000000000000000004",
+        "call_sid": "CA00000000000000000000000000000004"
+      }
+    },
+    "analysis": {
+      "call_successful": "success",
+      "transcript_summary": "Synthetic call. Claim CLM-1002 is in review; the caller was transferred to an adjuster."
+    },
+    "conversation_initiation_client_data": {
+      "dynamic_variables": {
+        "caller_on_file": true
+      }
+    },
+    "has_audio": false,
+    "has_user_audio": false,
+    "has_response_audio": false
+  }
+}

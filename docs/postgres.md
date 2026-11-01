@@ -20,9 +20,10 @@ processes; each holds its own connection and the database does the rest.
 
 ## Tables
 
-The `calls` table holds one row per `conversation_id`. `call_events` holds one
-row per delivery, `(type, conversation_id, event_timestamp)`, so repeats are
-dropped across processes and restarts.
+The `calls` table holds one row per `conversation_id`. `call_legs` holds every
+call SID seen for a conversation. `call_events` holds one row per delivery,
+`(type, conversation_id, event_timestamp)`, so repeats are dropped across
+processes and restarts.
 
 ```sql
 CREATE TABLE IF NOT EXISTS calls (
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS calls (
     transferred BOOLEAN,
     substantive BOOLEAN,
     audio_received BOOLEAN,
+    transfer_conference TEXT,
     first_event_at BIGINT,
     last_event_at BIGINT
 );
@@ -53,6 +55,13 @@ CREATE TABLE IF NOT EXISTS call_events (
     claimed_at BIGINT NOT NULL,
     PRIMARY KEY (event_type, conversation_id, event_timestamp)
 );
+
+CREATE TABLE IF NOT EXISTS call_legs (
+    conversation_id TEXT NOT NULL,
+    call_sid TEXT NOT NULL,
+    leg TEXT NOT NULL,
+    PRIMARY KEY (conversation_id, call_sid)
+);
 ```
 
 ## Merging an event
@@ -62,8 +71,8 @@ nulled. An event at least as new as the newest one merged (by `event_timestamp`)
 takes precedence; an older one only fills fields that are still empty.
 
 ```sql
-INSERT INTO calls (conversation_id, agent_id, status, started_at, call_duration_secs, termination_reason, call_successful, summary, failure_reason, tools_called, tool_errors, tool_latency_secs, transferred, substantive, audio_received, first_event_at, last_event_at)
-VALUES (%(conversation_id)s, %(agent_id)s, %(status)s, %(started_at)s, %(call_duration_secs)s, %(termination_reason)s, %(call_successful)s, %(summary)s, %(failure_reason)s, %(tools_called)s, %(tool_errors)s, %(tool_latency_secs)s, %(transferred)s, %(substantive)s, %(audio_received)s, %(first_event_at)s, %(last_event_at)s)
+INSERT INTO calls (conversation_id, agent_id, status, started_at, call_duration_secs, termination_reason, call_successful, summary, failure_reason, tools_called, tool_errors, tool_latency_secs, transferred, substantive, audio_received, transfer_conference, first_event_at, last_event_at)
+VALUES (%(conversation_id)s, %(agent_id)s, %(status)s, %(started_at)s, %(call_duration_secs)s, %(termination_reason)s, %(call_successful)s, %(summary)s, %(failure_reason)s, %(tools_called)s, %(tool_errors)s, %(tool_latency_secs)s, %(transferred)s, %(substantive)s, %(audio_received)s, %(transfer_conference)s, %(first_event_at)s, %(last_event_at)s)
 ON CONFLICT (conversation_id) DO UPDATE SET
     agent_id = CASE WHEN (excluded.last_event_at IS NOT NULL AND (calls.last_event_at IS NULL OR excluded.last_event_at >= calls.last_event_at)) THEN COALESCE(excluded.agent_id, calls.agent_id) ELSE COALESCE(calls.agent_id, excluded.agent_id) END,
     status = CASE WHEN (excluded.last_event_at IS NOT NULL AND (calls.last_event_at IS NULL OR excluded.last_event_at >= calls.last_event_at)) THEN COALESCE(excluded.status, calls.status) ELSE COALESCE(calls.status, excluded.status) END,
@@ -79,8 +88,18 @@ ON CONFLICT (conversation_id) DO UPDATE SET
     transferred = CASE WHEN (excluded.last_event_at IS NOT NULL AND (calls.last_event_at IS NULL OR excluded.last_event_at >= calls.last_event_at)) THEN COALESCE(excluded.transferred, calls.transferred) ELSE COALESCE(calls.transferred, excluded.transferred) END,
     substantive = CASE WHEN (excluded.last_event_at IS NOT NULL AND (calls.last_event_at IS NULL OR excluded.last_event_at >= calls.last_event_at)) THEN COALESCE(excluded.substantive, calls.substantive) ELSE COALESCE(calls.substantive, excluded.substantive) END,
     audio_received = CASE WHEN (excluded.last_event_at IS NOT NULL AND (calls.last_event_at IS NULL OR excluded.last_event_at >= calls.last_event_at)) THEN COALESCE(excluded.audio_received, calls.audio_received) ELSE COALESCE(calls.audio_received, excluded.audio_received) END,
+    transfer_conference = CASE WHEN (excluded.last_event_at IS NOT NULL AND (calls.last_event_at IS NULL OR excluded.last_event_at >= calls.last_event_at)) THEN COALESCE(excluded.transfer_conference, calls.transfer_conference) ELSE COALESCE(calls.transfer_conference, excluded.transfer_conference) END,
     first_event_at = CASE WHEN excluded.first_event_at IS NOT NULL AND (calls.first_event_at IS NULL OR excluded.first_event_at < calls.first_event_at) THEN excluded.first_event_at ELSE calls.first_event_at END,
     last_event_at = CASE WHEN (excluded.last_event_at IS NOT NULL AND (calls.last_event_at IS NULL OR excluded.last_event_at >= calls.last_event_at)) THEN excluded.last_event_at ELSE calls.last_event_at END;
+```
+
+Then each call SID the event names is added to `call_legs`; a SID already there
+keeps its first label.
+
+```sql
+INSERT INTO call_legs (conversation_id, call_sid, leg)
+VALUES (%(conversation_id)s, %(call_sid)s, %(leg)s)
+ON CONFLICT (conversation_id, call_sid) DO NOTHING;
 ```
 
 ## Claiming a delivery
