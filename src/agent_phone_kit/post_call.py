@@ -6,16 +6,16 @@ ElevenLabs POSTs here after a call ends (``post_call_transcription``,
 1. verifies the ``ElevenLabs-Signature`` HMAC over the raw body and rejects
    stale timestamps (401, which ElevenLabs does not retry);
 2. drops repeat deliveries of the same event (a retry carries the identical payload);
-3. hands the event and a ``CallSummary`` to your handler. If the handler raises,
-   it answers 500 and forgets the event, so a retry (when enabled on the webhook)
-   is processed again.
+3. merges the event into the call's durable record in a ``CallStore`` (one record per
+   ``conversation_id``; a later, thinner event never nulls a field);
+4. hands the event and a ``CallSummary`` to your handler. If the store or the handler
+   raises, it answers 500 and forgets the delivery, so a retry (when enabled on the
+   webhook) is processed again. Merging the same event twice changes nothing.
 """
 
 import json
 import logging
-import threading
-from collections import OrderedDict
-from collections.abc import Callable, Hashable, Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -23,12 +23,18 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
+from agent_phone_kit.calls import (
+    TRANSFER_TOOLS,
+    CallStore,
+    Claim,
+    EventKey,
+    record_from_event,
+)
 from agent_phone_kit.signature import SIGNATURE_HEADER, SignatureError, verify_signature
-from agent_phone_kit.substantive import has_substantive_caller_speech
 
 logger = logging.getLogger(__name__)
 
-TRANSFER_TOOLS = frozenset({"transfer_to_number", "transfer_to_agent"})
+__all__ = ["TRANSFER_TOOLS", "CallSummary", "PostCallHandler", "post_call_router", "summarize"]
 
 
 @dataclass(frozen=True)
@@ -54,37 +60,21 @@ class CallSummary:
 PostCallHandler = Callable[[dict[str, Any], CallSummary], None]
 
 
-def _as_dict(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
 def summarize(event: Mapping[str, Any]) -> CallSummary:
-    data = _as_dict(event.get("data"))
-    transcript = data.get("transcript")
-    turns = [_as_dict(turn) for turn in transcript or []]
-    calls = [_as_dict(c) for turn in turns for c in turn.get("tool_calls") or []]
-    results = [_as_dict(r) for turn in turns for r in turn.get("tool_results") or []]
-    names = tuple(str(call.get("tool_name", "")) for call in calls)
-    metadata = _as_dict(data.get("metadata"))
+    record = record_from_event(event)
     return CallSummary(
         event_type=str(event.get("type")),
-        conversation_id=str(data.get("conversation_id")),
-        agent_id=data.get("agent_id"),
-        status=data.get("status"),
-        call_duration_secs=metadata.get("call_duration_secs"),
-        call_successful=_as_dict(data.get("analysis")).get("call_successful"),
-        tools_called=names,
-        tool_errors=sum(1 for result in results if result.get("is_error")),
-        tool_latency_secs=tuple(
-            float(r["tool_latency_secs"])
-            for r in results
-            if isinstance(r.get("tool_latency_secs"), int | float)
-        ),
-        transferred=any(name in TRANSFER_TOOLS for name in names),
-        failure_reason=data.get("failure_reason"),
-        substantive=(
-            has_substantive_caller_speech(transcript) if isinstance(transcript, list) else None
-        ),
+        conversation_id=record.conversation_id,
+        agent_id=record.agent_id,
+        status=record.status,
+        call_duration_secs=record.call_duration_secs,
+        call_successful=record.call_successful,
+        tools_called=record.tools_called or (),
+        tool_errors=record.tool_errors or 0,
+        tool_latency_secs=record.tool_latency_secs or (),
+        transferred=bool(record.transferred),
+        failure_reason=record.failure_reason,
+        substantive=record.substantive,
     )
 
 
@@ -93,40 +83,12 @@ def log_summary(event: dict[str, Any], summary: CallSummary) -> None:
     logger.info("post-call %s", json.dumps(asdict(summary), sort_keys=True))
 
 
-class RecentEvents:
-    """Remembers recent deliveries so each event is handled once per process.
-
-    Behind more than one process, replace this with a shared store, for example
-    a unique index on (type, conversation_id, event_timestamp).
-    """
-
-    def __init__(self, max_size: int = 10_000) -> None:
-        self._max_size = max_size
-        self._keys: OrderedDict[Hashable, None] = OrderedDict()
-        self._lock = threading.Lock()
-
-    def claim(self, key: Hashable) -> bool:
-        """Mark ``key`` as handled. Returns False if it already was."""
-        with self._lock:
-            if key in self._keys:
-                return False
-            self._keys[key] = None
-            if len(self._keys) > self._max_size:
-                self._keys.popitem(last=False)
-            return True
-
-    def release(self, key: Hashable) -> None:
-        """Forget ``key`` so the next delivery of it is handled."""
-        with self._lock:
-            self._keys.pop(key, None)
-
-
 def post_call_router(
     secret: str,
     *,
     tolerance_seconds: int,
     handler: PostCallHandler,
-    recent: RecentEvents,
+    store: CallStore,
 ) -> APIRouter:
     router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -152,19 +114,23 @@ def post_call_router(
         if not isinstance(data, dict) or not data.get("conversation_id"):
             return JSONResponse({"error": "expected data.conversation_id"}, status_code=400)
 
-        key = (
-            str(event.get("type")),
-            str(data["conversation_id"]),
-            str(event.get("event_timestamp")),
-        )
-        if not recent.claim(key):
+        key = EventKey.of(event)
+        claim = await run_in_threadpool(store.claim, key)
+        if claim is Claim.DUPLICATE:
             return JSONResponse({"status": "duplicate"})
+        if claim is Claim.IN_PROGRESS:
+            # Another delivery of this event is still being handled. 503 is retried.
+            return JSONResponse(
+                {"status": "in progress"}, status_code=503, headers={"Retry-After": "30"}
+            )
         try:
+            await run_in_threadpool(store.merge, record_from_event(event))
             await run_in_threadpool(handler, event, summarize(event))
         except Exception:
-            recent.release(key)
-            logger.exception("post-call handler failed for %s", data["conversation_id"])
+            await run_in_threadpool(store.release, key)
+            logger.exception("post-call handling failed for %s", data["conversation_id"])
             return JSONResponse({"error": "handler failed"}, status_code=500)
+        await run_in_threadpool(store.finish, key)
         return JSONResponse({"status": "received"})
 
     return router

@@ -2,7 +2,8 @@
 
 Fixtures:
 
-* ``phone_kit_settings``: ``Settings`` with random throwaway secrets.
+* ``phone_kit_settings``: ``Settings`` with random throwaway secrets and a call store
+  in the test's temporary directory.
 * ``phone_kit_app``: the app under test. Override it in your conftest to test your own.
 * ``phone_kit_client``: a ``TestClient`` for ``phone_kit_app``.
 * ``replay_conversation``: replay a recorded conversation; fails the test with a diff.
@@ -43,8 +44,12 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 @pytest.fixture
-def phone_kit_settings() -> Settings:
-    return Settings(tool_secret=secrets.token_urlsafe(32), webhook_secret=secrets.token_urlsafe(32))
+def phone_kit_settings(tmp_path: Path) -> Settings:
+    return Settings(
+        tool_secret=secrets.token_urlsafe(32),
+        webhook_secret=secrets.token_urlsafe(32),
+        call_store_path=str(tmp_path / "calls.sqlite3"),
+    )
 
 
 @pytest.fixture

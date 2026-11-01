@@ -114,14 +114,19 @@ The receiver at `POST /webhooks/post-call`:
 1. answers 401 to a missing, wrong or stale signature. ElevenLabs does not retry a 400 or 401;
 2. answers 400 to a signed body that isn't a JSON event with `data.conversation_id`;
 3. answers `{"status": "duplicate"}` to a repeat of an event it has already handled,
-   keyed on type, conversation ID and event timestamp (a retry carries the same payload);
-4. calls your handler with the event and a `CallSummary`: tools called, tool
+   keyed on type, conversation ID and event timestamp (a retry carries the same
+   payload). The keys are kept in the call store, so a restart doesn't forget them.
+   A repeat that arrives while the first delivery is still being handled gets a
+   503 with `Retry-After`, so it is retried rather than lost;
+4. merges the event into the call's record (see [The call record](#the-call-record));
+5. calls your handler with the event and a `CallSummary`: tools called, tool
    errors, transfers, duration, any `tool_latency_secs` ElevenLabs reports, and
    `substantive`: whether the caller said anything beyond "hello?", "test" or
    "mm-hmm" (see [Counting calls](#counting-calls)).
    The default handler logs that summary as one JSON line, with no transcript text.
    Pass your own with `create_app(on_post_call=...)`;
-5. answers 500 if your handler raises, and forgets the event so a retry is processed.
+6. answers 500 if the store or your handler raises, and forgets the delivery so a
+   retry is processed. Merging the same event again changes nothing.
 
 Two things to know when you deploy:
 
@@ -132,8 +137,36 @@ Two things to know when you deploy:
   retry is signed again, so if late retries show up in the log as
   `rejected post-call webhook: timestamp is ... old`, raise
   `WEBHOOK_TOLERANCE_SECONDS`.
-- Duplicate detection is in memory, per process. With more than one process, use
-  a shared store, such as a unique index on the same three fields.
+- The default call store is one SQLite file (`CALL_STORE_PATH`, default
+  `calls.sqlite3`). With more than one process or host, use PostgreSQL
+  (`PostgresCallStore`).
+
+## The call record
+
+ElevenLabs sends several events for one call (`post_call_transcription`,
+`post_call_audio`, `call_initiation_failure`), may retry each, and a later event
+can carry less than an earlier one. If every event simply overwrote the row, a
+thin late event would write NULL over a good value, which is how a real CRM's live
+updates once broke. `agent_phone_kit.calls.CallStore` keeps one record per
+`conversation_id` and merges every event into it with one
+`INSERT ... ON CONFLICT (conversation_id) DO UPDATE` statement:
+
+- **Nothing is nulled.** Each column is `COALESCE(new, old)`; an event that
+  doesn't carry a field leaves it alone.
+- **Order is guarded by `event_timestamp`.** An event older than the newest one
+  merged only fills fields that are still empty. It never overwrites a newer value.
+- **Events fold together.** The transcription's summary, tools and duration and
+  the audio event's arrival end up on the same record, in either order.
+
+The record holds the agent, status, start time, duration, termination reason,
+`call_successful`, ElevenLabs' transcript summary, failure reason, tools called,
+tool errors, `tool_latency_secs`, whether it was transferred, whether it was
+substantive, whether audio arrived, the first and last event timestamps, and the
+event types merged. It holds no transcript text and no audio. Read it with
+`store.get(conversation_id)`, or pass your own store with `create_app(store=...)`.
+
+`tests/test_calls.py` sends the same webhook twice, then a thinner copy a minute
+later, then the audio event, and checks there is one record with no field nulled.
 
 ## Counting calls
 
@@ -229,7 +262,11 @@ and runs 12 more (`tests/test_sdk_conformance.py`); it also runs weekly.
   and phone-number configs parse as the SDK's request models with no unknown fields.
 - **Endpoints:** bearer auth (missing, wrong scheme, wrong token), normalization,
   not-found answers, the fallback for a slow (hanging), failing or overloaded backend, the initiation webhook with a broken
-  lookup, and the post-call receiver's 401, 400, duplicate and 500-then-retry paths.
+  lookup, and the post-call receiver's 401, 400, duplicate, in-progress and
+  500-then-retry paths.
+- **Call record:** twice-then-thinner, older events filling only gaps, events
+  without a timestamp, transcription and audio in either order, duplicates after a
+  restart, and a claim abandoned by a crash being reclaimed after 5 minutes.
 - **Replay and plugin:** the three synthetic conversations in `tests/conversations`
   replay cleanly; a changed tool answer fails with a diff; the plugin is run
   inside throwaway projects with `pytester`, including an app override.
@@ -251,10 +288,12 @@ src/agent_phone_kit/
   app.py            create_app(): wires the routers below
   claims.py         the example server tool
   initiation.py     conversation initiation webhook
-  post_call.py      post-call receiver, CallSummary, duplicate tracking
+  post_call.py      post-call receiver and CallSummary
+  calls.py          CallStore: one durable record per conversation_id
+  substantive.py    is_substantive(): the substantive-call filter
   signature.py      ElevenLabs-Signature verify and sign
   auth.py           bearer-secret dependency
-  settings.py       Settings.from_env(): secrets and the signature tolerance
+  settings.py       Settings.from_env(): secrets, tolerance, tool budget, store path
   replay.py         recorded-conversation replay
   pytest_plugin.py  fixtures and the phone_kit_conversations option
 examples/elevenlabs/  tool config and phone-number request bodies

@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from agent_phone_kit import __version__
 from agent_phone_kit.auth import bearer_auth
+from agent_phone_kit.calls import CallStore, SQLiteCallStore
 from agent_phone_kit.claims import (
     SAMPLE_CLAIMS,
     ClaimStore,
@@ -19,7 +20,7 @@ from agent_phone_kit.claims import (
     claim_status_router,
 )
 from agent_phone_kit.initiation import SAMPLE_CALLERS, initiation_router
-from agent_phone_kit.post_call import PostCallHandler, RecentEvents, log_summary, post_call_router
+from agent_phone_kit.post_call import PostCallHandler, log_summary, post_call_router
 from agent_phone_kit.settings import Settings
 
 
@@ -43,8 +44,12 @@ def create_app(
     claims: ClaimStore | None = None,
     is_known_caller: Callable[[str], bool] | None = None,
     on_post_call: PostCallHandler | None = None,
+    store: CallStore | None = None,
 ) -> FastAPI:
-    """Build the app. Anything not passed in falls back to the synthetic samples."""
+    """Build the app. Anything not passed in falls back to the synthetic samples.
+
+    Call records go to ``store``, by default a SQLite file at ``settings.call_store_path``.
+    """
     settings = settings or Settings.from_env()
     _show_kit_logs()
     auth = bearer_auth(settings.tool_secret)
@@ -63,7 +68,7 @@ def create_app(
             settings.webhook_secret,
             tolerance_seconds=settings.webhook_tolerance_seconds,
             handler=on_post_call or log_summary,
-            recent=RecentEvents(),
+            store=store or SQLiteCallStore(settings.call_store_path),
         )
     )
 

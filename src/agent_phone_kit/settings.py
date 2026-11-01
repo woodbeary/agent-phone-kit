@@ -11,6 +11,8 @@ TOOL_SECRET_ENV = "TOOL_BEARER_SECRET"  # noqa: S105 (a variable name, not a sec
 WEBHOOK_SECRET_ENV = "ELEVENLABS_WEBHOOK_SECRET"  # noqa: S105
 TOLERANCE_ENV = "WEBHOOK_TOLERANCE_SECONDS"
 BUDGET_ENV = "TOOL_BUDGET_SECONDS"
+CALL_STORE_ENV = "CALL_STORE_PATH"
+DEFAULT_CALL_STORE_PATH = "calls.sqlite3"
 
 MIN_TOOL_SECRET_LENGTH = 16
 
@@ -29,6 +31,9 @@ class Settings:
 
     tool_budget_seconds: float = DEFAULT_BUDGET_SECONDS
     """How long a tool waits on its backend before it answers with a fallback message."""
+
+    call_store_path: str = DEFAULT_CALL_STORE_PATH
+    """The SQLite file that holds one record per call (``:memory:`` for none)."""
 
     def __post_init__(self) -> None:
         if len(self.tool_secret) < MIN_TOOL_SECRET_LENGTH:
@@ -51,4 +56,5 @@ class Settings:
             webhook_secret=env[WEBHOOK_SECRET_ENV],
             webhook_tolerance_seconds=int(env.get(TOLERANCE_ENV) or DEFAULT_TOLERANCE_SECONDS),
             tool_budget_seconds=float(env.get(BUDGET_ENV) or DEFAULT_BUDGET_SECONDS),
+            call_store_path=env.get(CALL_STORE_ENV) or DEFAULT_CALL_STORE_PATH,
         )

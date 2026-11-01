@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agent_phone_kit.app import create_app
-from agent_phone_kit.post_call import CallSummary, RecentEvents, summarize
+from agent_phone_kit.post_call import CallSummary, summarize
 from agent_phone_kit.signature import SIGNATURE_HEADER, sign_payload
 
 URL = "/webhooks/post-call"
@@ -200,10 +200,3 @@ def test_summary_of_a_call_initiation_failure() -> None:
     assert summary.failure_reason == "busy"
     assert summary.tools_called == ()
     assert summary.call_duration_secs is None
-
-
-def test_recent_events_forgets_the_oldest_key() -> None:
-    recent = RecentEvents(max_size=2)
-    assert all(recent.claim(key) for key in ("a", "b", "c"))
-    assert recent.claim("a") is True
-    assert recent.claim("c") is False
