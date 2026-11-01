@@ -14,8 +14,9 @@ app = create_app(store=store)
 ```
 
 Install the driver with the `postgres` extra (`pip install
-"agent-phone-kit[postgres]"`, which adds `psycopg[binary]`). `PostgresCallStore` creates its tables if they don't exist
-and serializes its own calls on one connection. For more throughput, run more
+"agent-phone-kit[postgres]"`, which adds `psycopg[binary]`). `PostgresCallStore`
+creates its tables if they don't exist and serializes its own calls on one
+connection. For more throughput, run more
 processes; each holds its own connection and the database does the rest.
 
 ## Tables

@@ -51,6 +51,12 @@ def test_the_demo_steps(
     assert run("post-call", body, "--url", kit, *thinner) == (0, 'HTTP 200 {"status":"received"}')
     assert record(phone_kit_settings).summary == summary  # one record, nothing nulled
 
+    status, output = run("show", "conv_synthetic_0001", "--db", phone_kit_settings.call_store_path)
+    assert status == 0
+    shown = json.loads(output)
+    assert (shown["summary"], shown["call_duration_secs"]) == (summary, 41)
+    assert shown["last_event_at"] == shown["first_event_at"] + 60
+
     forged = run("post-call", body, "--url", kit, "--forge")
     assert forged == (1, 'HTTP 401 {"error":"invalid signature"}')
     with caplog.at_level(logging.WARNING, logger="agent_phone_kit.post_call"):
@@ -99,6 +105,19 @@ def test_stats_reads_the_call_store(kit: str, phone_kit_settings: Any) -> None:
         "tool_latency_p50_secs": 0.31,
         "tool_latency_p95_secs": 0.31,
     }
+
+
+def test_show_names_a_conversation_it_has_no_record_of(kit: str, phone_kit_settings: Any) -> None:
+    assert run("post-call", str(APPROVED), "--url", kit)[0] == 0
+    status, output = run("show", "conv_nope", "--db", phone_kit_settings.call_store_path)
+    assert (status, output) == (1, "conv_nope: no record for this conversation")
+
+
+def test_show_without_a_store(tmp_path: Path) -> None:
+    status, output = run("show", "conv_synthetic_0001", "--db", str(tmp_path / "none.sqlite3"))
+    assert status == 2
+    assert "no call store" in output
+    assert not (tmp_path / "none.sqlite3").exists()
 
 
 def test_stats_without_a_store(tmp_path: Path) -> None:

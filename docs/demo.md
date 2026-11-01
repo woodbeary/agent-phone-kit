@@ -46,11 +46,14 @@ $ agent-phone-kit post-call call.json
 HTTP 200 {"status":"duplicate"}
 $ agent-phone-kit post-call call.json --later 60 --drop data.analysis --drop data.metadata
 HTTP 200 {"status":"received"}
+$ agent-phone-kit show conv_synthetic_0001
 $ agent-phone-kit stats
 ```
 
-The third one is the same event a minute later with less in it. There is still
-one record, and its summary and duration are still there.
+The third one is the same event a minute later with less in it, so its own log
+line shows `null` for the duration. `show` (with the `conversation_id` from your
+body) prints the one merged record: `call_duration_secs` and `summary` are still
+there, and `last_event_at` moved a minute on. `stats` still counts one call.
 
 **1:20 Break the signature.**
 

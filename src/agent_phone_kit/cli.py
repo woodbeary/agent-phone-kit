@@ -6,6 +6,8 @@
     Sign a saved post-call webhook body the way ElevenLabs does and POST it, to
     show a duplicate, a thinner late copy, a stale signature or a forged body.
     The secret comes from ``ELEVENLABS_WEBHOOK_SECRET``, never the command line.
+``agent-phone-kit show CONVERSATION_ID [--db calls.sqlite3]``
+    One call's merged record from the call store, as JSON.
 ``agent-phone-kit stats [--db calls.sqlite3] [--since UNIX_SECONDS]``
     Raw call volume, the substantive call rate and tool latency from the call store.
 """
@@ -16,6 +18,7 @@ import os
 import sys
 import time
 from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -103,12 +106,33 @@ def _post_call(args: argparse.Namespace, out: TextIO) -> int:
     return OK if response.is_success else FAILED
 
 
-def _stats(args: argparse.Namespace, out: TextIO) -> int:
+def _open_store(args: argparse.Namespace, out: TextIO) -> SQLiteCallStore | None:
     path = args.db or os.environ.get(CALL_STORE_ENV) or DEFAULT_CALL_STORE_PATH
     if not Path(path).is_file():
         print(f"{path}: no call store there", file=out)
+        return None
+    return SQLiteCallStore(path)
+
+
+def _show(args: argparse.Namespace, out: TextIO) -> int:
+    store = _open_store(args, out)
+    if store is None:
         return UNUSABLE
-    store = SQLiteCallStore(path)
+    try:
+        record = store.get(args.conversation_id)
+    finally:
+        store.close()
+    if record is None:
+        print(f"{args.conversation_id}: no record for this conversation", file=out)
+        return FAILED
+    print(json.dumps(asdict(record), indent=2), file=out)
+    return OK
+
+
+def _stats(args: argparse.Namespace, out: TextIO) -> int:
+    store = _open_store(args, out)
+    if store is None:
+        return UNUSABLE
     try:
         volume = store.volume(since=args.since)
     finally:
@@ -148,6 +172,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     post.add_argument("--forge", action="store_true", help="change the body after signing")
 
+    show = commands.add_parser("show", help="one call's merged record from the call store")
+    show.add_argument("conversation_id")
+    show.add_argument("--db", help=f"the SQLite call store (default ${CALL_STORE_ENV})")
+
     stats = commands.add_parser("stats", help="call volume, substantive rate and tool latency")
     stats.add_argument("--db", help=f"the SQLite call store (default ${CALL_STORE_ENV})")
     stats.add_argument("--since", type=int, metavar="UNIX_SECONDS", help="calls started since")
@@ -161,6 +189,8 @@ def main(argv: Sequence[str] | None = None, *, out: TextIO | None = None) -> int
         return _lint(args.paths, stream)
     if args.command == "post-call":
         return _post_call(args, stream)
+    if args.command == "show":
+        return _show(args, stream)
     if args.command == "stats":
         return _stats(args, stream)
     return UNUSABLE  # pragma: no cover (argparse rejects unknown commands)

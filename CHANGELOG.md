@@ -26,7 +26,8 @@
   closed, and normalizes numbers to E.164. `GATE_HUMAN_NUMBER` turns it on; an
   `ELEVENLABS_API_KEY` or `TWILIO_AUTH_TOKEN` exported for other tools doesn't.
 - `agent-phone-kit` command: `lint` (consent in the agent's first message, run in
-  CI), `post-call` (sign and send a saved webhook body) and `stats`.
+  CI), `post-call` (sign and send a saved webhook body), `show` (one call's
+  record) and `stats`.
 - `docs/demo.md`, a two-minute demo on the claim-status tool.
 - Fixtures: a native Twilio call with `transfer_to_number`, and a widget
   conversation.

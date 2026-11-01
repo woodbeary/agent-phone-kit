@@ -188,8 +188,10 @@ The record holds the agent, status, start time, duration, termination reason,
 `call_successful`, ElevenLabs' transcript summary, failure reason, tools called,
 tool errors, `tool_latency_secs`, whether it was transferred, whether it was
 substantive, whether audio arrived, the transfer conference, the call legs, the
-first and last event timestamps, and the event types merged. It holds no transcript text and no audio. Read it with
-`store.get(conversation_id)`, or pass your own store with `create_app(store=...)`.
+first and last event timestamps, and the event types merged. It holds no
+transcript text and no audio. Read it with `store.get(conversation_id)` or
+`agent-phone-kit show CONVERSATION_ID`, or pass your own store with
+`create_app(store=...)`.
 
 `tests/test_calls.py` sends the same webhook twice, then a thinner copy a minute
 later, then the audio event, and checks there is one record with no field nulled.
@@ -329,9 +331,9 @@ store's tests on PostgreSQL.
   intended difference, far-future timestamps, has its own test. The example tool
   and phone-number configs parse as the SDK's request models with no unknown fields.
 - **Endpoints:** bearer auth (missing, wrong scheme, wrong token), normalization,
-  not-found answers, the fallback for a slow (hanging), failing or overloaded backend, the initiation webhook with a broken
-  lookup, and the post-call receiver's 401, 400, duplicate, in-progress and
-  500-then-retry paths.
+  not-found answers, the fallback for a slow (hanging), failing or overloaded
+  backend, the initiation webhook with a broken lookup, and the post-call
+  receiver's 401, 400, duplicate, in-progress and 500-then-retry paths.
 - **Call record:** twice-then-thinner, older events filling only gaps, events
   without a timestamp, transcription and audio in either order, duplicates after a
   restart, and a claim abandoned by a crash being reclaimed after 5 minutes. A
@@ -352,7 +354,8 @@ store's tests on PostgreSQL.
   gate's call legs landing on one record. The SDK job checks the register-call
   body against the SDK's own parameters.
 - **Command:** the demo's received, duplicate, thinner-late-copy, forged and stale
-  steps against the kit served on `127.0.0.1`, and `stats` on the result.
+  steps against the kit served on `127.0.0.1`, and `show` and `stats` on the
+  result.
 - **Consent lint:** recorded with and without a disclosure, no first message,
   `record_voice` unset or false, interruptions allowed, a table of disclosure
   wording, and the command's exit codes, run in-process and as `python -m`.
@@ -371,7 +374,7 @@ with the call count and that method.
 
 ## The command
 
-`agent-phone-kit` has three subcommands:
+`agent-phone-kit` has four subcommands:
 
 - `lint agent.json`: the consent lint (exit 1 on a problem, 2 on unreadable input).
 - `post-call body.json [--later S] [--drop data.analysis] [--stale S] [--forge]`:
@@ -379,6 +382,8 @@ with the call count and that method.
   (default `http://127.0.0.1:8000/webhooks/post-call`, or `--url`). The secret
   comes from `ELEVENLABS_WEBHOOK_SECRET`, never the command line. One command each
   shows a duplicate, a thinner late copy, a stale signature and a forged body.
+- `show CONVERSATION_ID [--db calls.sqlite3]`: one call's merged record from the
+  call store, as JSON.
 - `stats [--db calls.sqlite3] [--since UNIX_SECONDS]`: raw volume, substantive
   call rate and tool latency from the call store.
 
