@@ -44,3 +44,28 @@ jobs:
       # Fail loudly instead of skipping if the SDK cannot be imported.
       - run: python -c "import elevenlabs.client"
       - run: pytest tests/test_sdk_conformance.py -v
+
+  postgres:
+    # The call-store tests against PostgreSQL: the multi-process recipe in docs/postgres.md.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kit
+          POSTGRES_PASSWORD: throwaway-ci-database
+          POSTGRES_DB: kit_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kit -d kit_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      AGENT_PHONE_KIT_TEST_POSTGRES: postgresql://kit:throwaway-ci-database@localhost:5432/kit_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev,postgres]"
+      - run: pytest tests/test_calls.py -k postgres -v

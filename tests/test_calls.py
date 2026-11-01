@@ -2,6 +2,7 @@
 
 import copy
 import json
+import os
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from agent_phone_kit.calls import (
     CallRecord,
     Claim,
     EventKey,
+    PostgresCallStore,
     SqlCallStore,
     SQLiteCallStore,
     record_from_event,
@@ -34,13 +36,44 @@ class Clock:
 StoreFactory = Callable[..., SqlCallStore]
 
 
-@pytest.fixture(params=["sqlite-memory", "sqlite-file"])
-def make_store(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[StoreFactory]:
-    stores: list[SqlCallStore] = []
+POSTGRES_ENV = "AGENT_PHONE_KIT_TEST_POSTGRES"
 
-    def make(**options: Any) -> SqlCallStore:
-        path = ":memory:" if request.param == "sqlite-memory" else tmp_path / "calls.sqlite3"
-        store = SQLiteCallStore(path, **options)
+
+@pytest.fixture(params=["sqlite-memory", "sqlite-file", "postgres"])
+def make_store(
+    request: pytest.FixtureRequest, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[StoreFactory]:
+    """Build stores on a fresh database; ``shared=True`` opens another one on the same
+    database, as a second process would.
+
+    The PostgreSQL case runs when ``AGENT_PHONE_KIT_TEST_POSTGRES`` holds a DSN for a
+    throwaway database (CI starts one); its tables are dropped first.
+    """
+    backend = request.param
+    stores: list[SqlCallStore] = []
+    if backend == "postgres":
+        dsn = os.environ.get(POSTGRES_ENV)
+        if not dsn:
+            pytest.skip(f"set {POSTGRES_ENV} to a throwaway PostgreSQL DSN")
+        import psycopg  # with the DSN set, a missing driver is an error, not a skip
+    counter = iter(range(1000))
+    path = tmp_path / "calls-0.sqlite3"
+
+    def make(*, shared: bool = False, **options: Any) -> SqlCallStore:
+        nonlocal path
+        if backend == "sqlite-memory":
+            if shared:
+                pytest.skip("an in-memory database can't be shared")
+            store: SqlCallStore = SQLiteCallStore(":memory:", **options)
+        elif backend == "sqlite-file":
+            if not shared:
+                path = tmp_path / f"calls-{next(counter)}.sqlite3"
+            store = SQLiteCallStore(path, **options)
+        else:
+            connection = psycopg.connect(dsn, autocommit=True)
+            if not shared:
+                connection.execute("DROP TABLE IF EXISTS calls, call_events")
+            store = PostgresCallStore(connection, **options)
         stores.append(store)
         return store
 
@@ -255,6 +288,30 @@ def test_other_event_types_for_the_call_are_separate_deliveries(make_store: Stor
     assert store.claim(KEY) is Claim.NEW
     audio = EventKey("post_call_audio", KEY.conversation_id, KEY.event_timestamp)
     assert store.claim(audio) is Claim.NEW
+
+
+def test_two_processes_fold_their_events_into_one_record(
+    make_store: StoreFactory, transcription: dict[str, Any]
+) -> None:
+    first = make_store()
+    second = make_store(shared=True)
+    second.merge(record_from_event(audio_event(transcription)))
+    first.merge(record_from_event(transcription))
+    second.merge(record_from_event(thinner(transcription)))
+    for store in (first, second):
+        record = full_record(store, "conv_synthetic_0001")
+        assert record.audio_received is True
+        assert record.summary
+        assert record.tools_called == ("claim_status", "end_call")
+
+
+def test_only_one_process_claims_a_delivery(make_store: StoreFactory) -> None:
+    first = make_store()
+    second = make_store(shared=True)
+    assert first.claim(KEY) is Claim.NEW
+    assert second.claim(KEY) is Claim.IN_PROGRESS
+    first.finish(KEY)
+    assert second.claim(KEY) is Claim.DUPLICATE
 
 
 def test_sqlite_file_survives_a_restart(tmp_path: Path, transcription: dict[str, Any]) -> None:

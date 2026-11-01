@@ -287,7 +287,7 @@ FROM calls WHERE conversation_id = :conversation_id"""
 _EVENT_TYPES_SQL = """SELECT DISTINCT event_type FROM call_events
 WHERE conversation_id = :conversation_id AND state = 'done' ORDER BY event_type"""
 
-_NAMED = re.compile(r":([a-z_]+)")
+_NAMED = re.compile(r"(?<![\w:']):([a-z_]+)")
 
 
 def pyformat(sql: str) -> str:

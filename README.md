@@ -138,8 +138,9 @@ Two things to know when you deploy:
   `rejected post-call webhook: timestamp is ... old`, raise
   `WEBHOOK_TOLERANCE_SECONDS`.
 - The default call store is one SQLite file (`CALL_STORE_PATH`, default
-  `calls.sqlite3`). With more than one process or host, use PostgreSQL
-  (`PostgresCallStore`).
+  `calls.sqlite3`). With more than one process or host, use PostgreSQL:
+  [docs/postgres.md](docs/postgres.md) has the recipe, the same SQL with
+  PostgreSQL placeholders.
 
 ## The call record
 
@@ -249,9 +250,10 @@ replayed; replay sends the auth you give it.
 
 ## What is tested, and what isn't
 
-`pytest` runs 107 tests on Python 3.11, 3.12 and 3.13 in CI, after `ruff check`
-and `ruff format --check`. A second CI job installs the latest `elevenlabs` SDK
-and runs 12 more (`tests/test_sdk_conformance.py`); it also runs weekly.
+`pytest` runs on Python 3.11, 3.12 and 3.13 in CI, after `ruff check` and
+`ruff format --check`. A second CI job installs the latest `elevenlabs` SDK and
+runs `tests/test_sdk_conformance.py`; it also runs weekly. A third runs the call
+store's tests on PostgreSQL.
 
 - **Signature:** a known-answer vector computed separately with `openssl dgst
   -sha256 -hmac`; tampered body, wrong secret, changed timestamp, stale and
@@ -266,7 +268,9 @@ and runs 12 more (`tests/test_sdk_conformance.py`); it also runs weekly.
   500-then-retry paths.
 - **Call record:** twice-then-thinner, older events filling only gaps, events
   without a timestamp, transcription and audio in either order, duplicates after a
-  restart, and a claim abandoned by a crash being reclaimed after 5 minutes.
+  restart, and a claim abandoned by a crash being reclaimed after 5 minutes. A
+  third CI job runs the same store tests on PostgreSQL 16, including two
+  connections folding events into one record and racing for one claim.
 - **Replay and plugin:** the three synthetic conversations in `tests/conversations`
   replay cleanly; a changed tool answer fails with a diff; the plugin is run
   inside throwaway projects with `pytester`, including an app override.
