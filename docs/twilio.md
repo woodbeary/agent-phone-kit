@@ -127,8 +127,8 @@ is genuine. The kit tries every URL the request could have been signed with:
   `" 12025550100"`), with the `+` both literal and as `%2B`;
 - with and without a trailing slash, and with and without the default port.
 
-Trying more URLs doesn't weaken the check: each one still needs a signature made
-with your auth token. It fails closed. There is no setting that skips it, the gate
+Trying more URLs doesn't let anyone forge a request: each candidate still needs a
+signature made with your auth token. It fails closed. There is no setting that skips it, the gate
 won't start without the auth token, and a missing or wrong signature is a 403.
 
 Phone numbers are normalized to E.164 as they arrive: `" 12025550143"`,
