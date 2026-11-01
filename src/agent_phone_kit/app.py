@@ -22,6 +22,7 @@ from agent_phone_kit.claims import (
 from agent_phone_kit.initiation import SAMPLE_CALLERS, initiation_router
 from agent_phone_kit.post_call import PostCallHandler, log_summary, post_call_router
 from agent_phone_kit.settings import Settings
+from agent_phone_kit.twilio_gate import ElevenLabsRegisterCall, RegisterCall, gate_router
 
 
 def _show_kit_logs() -> None:
@@ -45,10 +46,13 @@ def create_app(
     is_known_caller: Callable[[str], bool] | None = None,
     on_post_call: PostCallHandler | None = None,
     store: CallStore | None = None,
+    register_call: RegisterCall | None = None,
 ) -> FastAPI:
     """Build the app. Anything not passed in falls back to the synthetic samples.
 
     Call records go to ``store``, by default a SQLite file at ``settings.call_store_path``.
+    The Twilio gate is mounted only when ``settings.gate`` is set; it hands calls to the
+    agent through ``register_call``, by default ElevenLabs' register-call API.
     """
     settings = settings or Settings.from_env()
     _show_kit_logs()
@@ -71,6 +75,14 @@ def create_app(
             store=store or SQLiteCallStore(settings.call_store_path),
         )
     )
+
+    if settings.gate is not None:
+        app.include_router(
+            gate_router(
+                settings.gate,
+                register_call or ElevenLabsRegisterCall(settings.gate.elevenlabs_api_key),
+            )
+        )
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

@@ -1,0 +1,21 @@
+{
+  "name": "Claims line",
+  "conversation_config": {
+    "agent": {
+      "first_message": "Thanks for calling the claims line. I'm an AI assistant, and this call is recorded. How can I help?",
+      "disable_first_message_interruptions": true,
+      "language": "en"
+    },
+    "asr": {
+      "user_input_audio_format": "ulaw_8000"
+    },
+    "tts": {
+      "agent_output_audio_format": "ulaw_8000"
+    }
+  },
+  "platform_settings": {
+    "privacy": {
+      "record_voice": true
+    }
+  }
+}

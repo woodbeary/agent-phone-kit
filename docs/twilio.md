@@ -67,9 +67,78 @@ These steps need your ElevenLabs and Twilio accounts; nothing here is exercised 
 3. Save that call's webhook body, replace anything personal with fake values, and
    add it to `tests/conversations/`. `pytest` now replays it.
 
+## A person first, the agent if nobody answers: register-call
+
+The native integration hands the number's voice webhook to ElevenLabs, so nothing
+of yours runs before the agent. When a person should get the call first, keep the
+number's voice webhook pointed at the kit and let ElevenLabs'
+[register-call API](https://elevenlabs.io/docs/eleven-agents/phone-numbers/twilio-integration/register-call)
+connect the call to the agent only if nobody picks up. The kit's gate does this:
+
+1. `POST /twilio/voice` (the number's voice webhook): "To reach a person, press 1."
+   A caller who doesn't press 1 hears it once more, then goodbye. Most robocalls
+   stop here.
+2. `POST /twilio/gate`: on 1, a disclosure ("This call may be recorded and
+   transcribed. If nobody can answer, an AI assistant will take your call."), then
+   `<Dial>` to `GATE_HUMAN_NUMBER` for 18 seconds.
+3. `POST /twilio/dial-result`: if the person answered, hang up when they're done.
+   If not, call register-call and return its TwiML, which connects the call to the
+   agent over a WebSocket. The parent call SID, the SID of the `<Dial>` that
+   wasn't answered and its status go along as the `parent_call_sid`,
+   `human_call_sid` and `human_dial_status` dynamic variables, so the post-call
+   webhook folds all the legs onto one call record. If register-call fails, the
+   caller hears "Sorry, we can't take your call right now" instead of Twilio's
+   application error.
+
+Turn it on by setting all four of `TWILIO_AUTH_TOKEN`, `GATE_HUMAN_NUMBER`,
+`ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID`. Setting some but not all stops the
+app from starting. Then set the Twilio number's voice webhook to
+`POST https://YOUR-HOST/twilio/voice`. You can add `?line=+1...` to that URL to
+tell the agent which of your lines was called; it arrives as the `line` dynamic
+variable, normalized to E.164.
+
+What register-call changes, per ElevenLabs' docs:
+
+- The agent's audio must be μ-law 8000 Hz in and out
+  (`conversation_config.tts.agent_output_audio_format` and
+  `conversation_config.asr.user_input_audio_format` set to `ulaw_8000`; the
+  example agent in [`examples/elevenlabs/agent.json`](../examples/elevenlabs/agent.json)
+  does).
+- ElevenLabs doesn't hold your Twilio credentials on this path, so its
+  transfer tools don't work. Transfers are yours.
+- The number doesn't show in ElevenLabs' phone-number list.
+
+### Twilio signatures behind a proxy
+
+Every gate request must carry a valid `X-Twilio-Signature`: HMAC-SHA1 of the exact
+URL Twilio called plus the sorted POST fields, keyed with your auth token. Twilio
+signs the URL as it called it, so a proxy that rewrites the host or scheme, drops
+a trailing slash, or re-encodes the query breaks the check even though the request
+is genuine. The kit tries every URL the request could have been signed with:
+
+- the URL as the app received it;
+- the scheme and host from `X-Forwarded-Proto` and `X-Forwarded-Host`;
+- `TWILIO_PUBLIC_BASE_URL`, if you set it (use this when your proxy doesn't send
+  forwarded headers);
+- each of those with a `+` restored where a query value decoded to a space (a
+  literal `+` in a query string means a space, so `?line=+12025550100` arrives as
+  `" 12025550100"`), with the `+` both literal and as `%2B`;
+- with and without a trailing slash, and with and without the default port.
+
+Trying more URLs doesn't weaken the check: each one still needs a signature made
+with your auth token. It fails closed. There is no setting that skips it, the gate
+won't start without the auth token, and a missing or wrong signature is a 403.
+
+Phone numbers are normalized to E.164 as they arrive: `" 12025550143"`,
+`"(202) 555-0143"` and `"12025550143"` all become `+12025550143`. Callers that
+aren't phone numbers (`anonymous`, `client:...`) are passed to register-call as
+Twilio sent them.
+
+`tests/test_twilio_gate.py` signs requests as Twilio does (checked against a
+vector computed with `openssl`), sends one with `?line=+12025550100` to an app
+behind a rewritten host, and runs register-call against a fake ElevenLabs API on
+`127.0.0.1`. No test calls Twilio or ElevenLabs.
+
 ## Other ways in
 
-If you keep your own Twilio voice webhook (an IVR in front of the agent, for
-example), ElevenLabs' [Register Twilio calls](https://elevenlabs.io/docs/eleven-agents/phone-numbers/twilio-integration/register-call)
-API connects a call you already hold. That path isn't covered by this kit's
-examples. For a Twilio Elastic SIP Trunk, follow [sip-trunking.md](sip-trunking.md).
+For a Twilio Elastic SIP Trunk, follow [sip-trunking.md](sip-trunking.md).

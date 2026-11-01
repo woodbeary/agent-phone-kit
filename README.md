@@ -12,6 +12,10 @@ A small Python kit for the server side of an ElevenLabs phone agent:
 - **Replay tests.** A pytest plugin that takes recorded conversations, re-sends
   every tool request the agent made, and fails with a field-by-field diff when your
   tools now answer differently.
+- **A press-1 gate on your own Twilio number.** A person gets the call first; if
+  nobody answers, ElevenLabs' register-call API hands it to the agent. Every request
+  is checked against `X-Twilio-Signature` over each URL a proxy could have
+  rewritten, and it fails closed ([docs/twilio.md](docs/twilio.md#a-person-first-the-agent-if-nobody-answers-register-call)).
 - **Telephony docs.** How to attach the agent to a [Twilio number](docs/twilio.md)
   or a [SIP trunk](docs/sip-trunking.md), with request bodies for ElevenLabs'
   phone-number API.
@@ -300,10 +304,19 @@ store's tests on PostgreSQL.
   (including a native Twilio call with a `transfer_to_number`)
   replay cleanly; a changed tool answer fails with a diff; the plugin is run
   inside throwaway projects with `pytester`, including an app override.
+- **Twilio gate:** a signature vector computed with `openssl`; a `+1` number in
+  the query string behind a rewritten host (forwarded headers, a public base URL,
+  a `+` decoded to a space or unescaped from `%2B`, a dropped trailing slash); 403
+  for unsigned, wrongly signed and tampered requests on every route; the press-1,
+  retry, goodbye, answered and no-answer paths; register-call against a fake
+  ElevenLabs API on loopback, including its failures; E.164 normalization; and the
+  gate's call legs landing on one record. The SDK job checks the register-call
+  body against the SDK's own parameters.
 - **Examples:** the tool config's URL, method and body fields match the app's
   route and request model, and the phone-number bodies hold only placeholders.
 
-Not tested here: a live call through ElevenLabs, Twilio or a SIP trunk; whether
+Not tested here: a live call through ElevenLabs, Twilio or a SIP trunk, or a
+real register-call; whether
 `result_value` in a real exported call is the raw response body, as replay
 assumes (the fixtures follow the transcript types in ElevenLabs' SDK);
 performance. There are no latency numbers in this repo.
@@ -321,6 +334,7 @@ src/agent_phone_kit/
   post_call.py      post-call receiver and CallSummary
   calls.py          CallStore: one durable record per conversation_id
   substantive.py    is_substantive(): the substantive-call filter
+  twilio_gate.py    press-1 gate, register-call fallback, Twilio signature checks
   signature.py      ElevenLabs-Signature verify and sign
   auth.py           bearer-secret dependency
   settings.py       Settings.from_env(): secrets, tolerance, tool budget, store path

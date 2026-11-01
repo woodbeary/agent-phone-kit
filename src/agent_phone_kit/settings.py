@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from agent_phone_kit.claims import DEFAULT_BUDGET_SECONDS
 from agent_phone_kit.signature import DEFAULT_TOLERANCE_SECONDS
+from agent_phone_kit.twilio_gate import GateSettings
 
 TOOL_SECRET_ENV = "TOOL_BEARER_SECRET"  # noqa: S105 (a variable name, not a secret)
 WEBHOOK_SECRET_ENV = "ELEVENLABS_WEBHOOK_SECRET"  # noqa: S105
@@ -35,6 +36,9 @@ class Settings:
     call_store_path: str = DEFAULT_CALL_STORE_PATH
     """The SQLite file that holds one record per call (``:memory:`` for none)."""
 
+    gate: GateSettings | None = field(default=None, repr=False)
+    """The register-call gate on your own Twilio number, if you use one."""
+
     def __post_init__(self) -> None:
         if len(self.tool_secret) < MIN_TOOL_SECRET_LENGTH:
             raise ValueError(f"tool secret must be at least {MIN_TOOL_SECRET_LENGTH} characters")
@@ -57,4 +61,5 @@ class Settings:
             webhook_tolerance_seconds=int(env.get(TOLERANCE_ENV) or DEFAULT_TOLERANCE_SECONDS),
             tool_budget_seconds=float(env.get(BUDGET_ENV) or DEFAULT_BUDGET_SECONDS),
             call_store_path=env.get(CALL_STORE_ENV) or DEFAULT_CALL_STORE_PATH,
+            gate=GateSettings.from_env(env),
         )

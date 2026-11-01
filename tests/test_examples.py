@@ -64,3 +64,10 @@ def test_sip_example_uses_encrypted_transport_and_supported_codecs() -> None:
     assert outbound["transport"] == "tls"
     assert outbound["media_encryption"] == "required"
     assert set(outbound["enabled_codecs"]) <= {"G722/8000", "PCMU/8000", "PCMA/8000"}
+
+
+def test_example_agent_uses_mulaw_8khz_for_register_call() -> None:
+    # register-call needs u-law 8000 Hz in and out.
+    config = load("agent.json")["conversation_config"]
+    assert config["asr"]["user_input_audio_format"] == "ulaw_8000"
+    assert config["tts"]["agent_output_audio_format"] == "ulaw_8000"
