@@ -35,6 +35,9 @@ dependencies = [
 dev = ["pytest>=8", "ruff>=0.6"]
 postgres = ["psycopg[binary]>=3.1"]
 
+[project.scripts]
+agent-phone-kit = "agent_phone_kit.cli:main"
+
 [project.entry-points.pytest11]
 agent_phone_kit = "agent_phone_kit.pytest_plugin"
 

@@ -29,6 +29,7 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest
+      - run: agent-phone-kit lint examples/elevenlabs/agent.json
 
   sdk-conformance:
     # Checks the verifier and the example configs against the latest ElevenLabs Python SDK.

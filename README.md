@@ -16,6 +16,9 @@ A small Python kit for the server side of an ElevenLabs phone agent:
   nobody answers, ElevenLabs' register-call API hands it to the agent. Every request
   is checked against `X-Twilio-Signature` over each URL a proxy could have
   rewritten, and it fails closed ([docs/twilio.md](docs/twilio.md#a-person-first-the-agent-if-nobody-answers-register-call)).
+- **A consent lint.** `agent-phone-kit lint agent.json` fails when a recorded
+  agent's first message doesn't say the call is recorded or that an AI is
+  speaking, or when the caller can talk over it. CI runs it on the example agent.
 - **Telephony docs.** How to attach the agent to a [Twilio number](docs/twilio.md)
   or a [SIP trunk](docs/sip-trunking.md), with request bodies for ElevenLabs'
   phone-number API.
@@ -214,6 +217,31 @@ or a call that failed to start). The latency percentiles are nearest-rank over
 every `tool_latency_secs` ElevenLabs reported in those calls, with the count next
 to them (`tool_results`). The numbers above are from the synthetic test data.
 
+## Consent in the call
+
+The person on the phone never accepted your terms, so the first thing the agent
+says has to tell them what is going on. `agent-phone-kit lint` reads an agent
+config (the body you send to create or update an agent, or what
+`GET /v1/convai/agents/{agent_id}` returns) and exits 1 when:
+
+- `platform_settings.privacy.record_voice` is true (or not set, which the lint
+  treats as recorded) and `conversation_config.agent.first_message` is empty or
+  says nothing about recording or AI; or
+- `conversation_config.agent.disable_first_message_interruptions` isn't true, so
+  the caller can talk over the disclosure and never hear it.
+
+```console
+$ agent-phone-kit lint examples/elevenlabs/agent.json
+examples/elevenlabs/agent.json: ok
+$ agent-phone-kit lint my-agent.json
+my-agent.json: conversation_config.agent.first_message: the call is recorded but the first message doesn't say so or that an AI is speaking
+my-agent.json: conversation_config.agent.disable_first_message_interruptions: must be true, or the caller can talk over the disclosure and never hear it
+```
+
+It looks for words ("recorded", "transcribed", "AI", "virtual assistant"), not
+meaning, and only in the default English first message, so read yours too. Run it
+in CI on the config you deploy, as this repo does on the example.
+
 ## The initiation webhook
 
 For inbound Twilio and SIP calls, ElevenLabs can ask your server for dynamic
@@ -312,6 +340,9 @@ store's tests on PostgreSQL.
   ElevenLabs API on loopback, including its failures; E.164 normalization; and the
   gate's call legs landing on one record. The SDK job checks the register-call
   body against the SDK's own parameters.
+- **Consent lint:** recorded with and without a disclosure, no first message,
+  `record_voice` unset or false, interruptions allowed, a table of disclosure
+  wording, and the command's exit codes, run in-process and as `python -m`.
 - **Examples:** the tool config's URL, method and body fields match the app's
   route and request model, and the phone-number bodies hold only placeholders.
 
@@ -335,12 +366,14 @@ src/agent_phone_kit/
   calls.py          CallStore: one durable record per conversation_id
   substantive.py    is_substantive(): the substantive-call filter
   twilio_gate.py    press-1 gate, register-call fallback, Twilio signature checks
+  consent.py        the consent lint
+  cli.py            the agent-phone-kit command
   signature.py      ElevenLabs-Signature verify and sign
   auth.py           bearer-secret dependency
   settings.py       Settings.from_env(): secrets, tolerance, tool budget, store path
   replay.py         recorded-conversation replay
   pytest_plugin.py  fixtures and the phone_kit_conversations option
-examples/elevenlabs/  tool config and phone-number request bodies
+examples/elevenlabs/  tool, agent and phone-number configs
 docs/                 Twilio and SIP trunking guides
 tests/                tests and synthetic conversations
 ```
